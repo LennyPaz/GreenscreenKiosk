@@ -925,13 +925,24 @@ function createQuantityScreen() {
     `;
   }
 
-  // For email-only delivery, skip quantity screen and go to email entry
-  // This shouldn't render but if it does, show a simple transition screen
+  // For email-only delivery OR if print quantity already selected when coming back
+  // Skip quantity screen and auto-navigate to appropriate screen
+  // This triggers when navigating back from later screens
+  if (isEmailSelected) {
+    // Auto-navigate to email screen
+    setTimeout(() => navigateTo('email', true), 0);
+  } else {
+    // Auto-navigate to name screen (print-only, already selected quantity)
+    setTimeout(() => navigateTo('name', true), 0);
+  }
+
+  // Show brief transition message while navigating
   return `
     <div class="screen">
       <main class="screen__body">
         <div class="text-center">
-          <h1 class="text-3xl font-bold">Redirecting to email entry...</h1>
+          <div style="font-size: 48px; margin-bottom: 20px;">⏳</div>
+          <h1 class="text-3xl font-bold">Loading...</h1>
         </div>
       </main>
     </div>
