@@ -365,15 +365,17 @@ function generateEmailId() {
 // ============================================
 function createKeyboard(inputId, includeEmailShortcuts = false) {
   const keys = includeEmailShortcuts ? [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.', '-', '_'],
     ['@GMAIL', '@YAHOO', '@HOTMAIL', '@OUTLOOK'],
     ['SPACE', 'DELETE', 'DONE']
   ] : [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.', 'COM'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '-', "'", '.', 'COM'],
     ['SPACE', 'DELETE', 'DONE']
   ];
 
@@ -443,7 +445,10 @@ function attachKeyboardListeners() {
       } else if (key === '@OUTLOOK') {
         input.value += '@outlook.com';
       } else if (key) {
-        input.value += key.toLowerCase();
+        // Keep numbers and symbols as-is, lowercase letters only
+        const isNumber = /^[0-9]$/.test(key);
+        const isSymbol = /^[-_'@.]$/.test(key);
+        input.value += (isNumber || isSymbol) ? key : key.toLowerCase();
       }
 
       // Update state for email inputs (C6: Using unique IDs)
@@ -949,7 +954,11 @@ function createEmailScreen() {
   // SIMPLIFIED: Email pricing is per recipient (base + $1 per additional)
   const baseEmailPrice = config?.emailPricing?.[1] || 10;
   const emailCount = state.emailAddresses.length;
-  const totalEmailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
+  const emailOnlyPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
+
+  // Calculate total including print cost if delivery is 'both'
+  const printPrice = state.deliveryMethod === 'both' && state.printQuantity > 0 ? (config?.printPricing?.[state.printQuantity] || 0) : 0;
+  const totalEmailPrice = emailOnlyPrice + printPrice;
 
   return `
     <div class="screen">
@@ -1007,9 +1016,18 @@ function createEmailScreen() {
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: var(--shadow-lg);">
             <div style="font-size: 18px; font-weight: bold; margin-bottom: 16px;">Order Summary</div>
 
+            ${state.deliveryMethod === 'both' && state.printQuantity > 0 ? `
+              <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-size: 14px;">${state.printQuantity} Print${state.printQuantity > 1 ? 's' : ''}</span>
+                  <span style="font-size: 16px; font-weight: bold;">$${(config?.printPricing?.[state.printQuantity] || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            ` : ''}
+
             <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 14px;">Base price (1 email)</span>
+                <span style="font-size: 14px;">${state.deliveryMethod === 'both' ? 'Email: ' : ''}Base price (1 email)</span>
                 <span style="font-size: 16px; font-weight: bold;">$${baseEmailPrice.toFixed(2)}</span>
               </div>
               ${state.emailAddresses.length > 1 ? `
@@ -1022,7 +1040,7 @@ function createEmailScreen() {
 
             <div style="border-top: 2px solid rgba(255,255,255,0.3); padding-top: 12px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 16px; font-weight: 600;">Total:</span>
+                <span style="font-size: 16px; font-weight: 600;">${state.deliveryMethod === 'both' ? 'Grand Total:' : 'Total:'}</span>
                 <span style="font-size: 32px; font-weight: bold;">$${totalEmailPrice.toFixed(2)}</span>
               </div>
             </div>
@@ -1109,6 +1127,12 @@ function createReviewScreen() {
   // Batch 6: Use centralized price calculation
   state.totalPrice = calculateCurrentPrice();
   const total = state.totalPrice;
+
+  // Calculate component prices for display
+  const printPrice = state.printQuantity > 0 ? (state.config?.printPricing?.[state.printQuantity] || 0) : 0;
+  const emailCount = state.emailAddresses.filter(e => e.value && e.value.trim()).length;
+  const baseEmailPrice = state.config?.emailPricing?.[1] || 10;
+  const emailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
 
   return `
     <div class="screen">
@@ -1743,7 +1767,7 @@ function closeStartOverModal() {
 // ============================================
 // RENDER FUNCTION
 // ============================================
-function render() {
+function render(noAnimation = false) {
   const app = document.getElementById('app');
   if (!app) return;
 
@@ -1796,32 +1820,45 @@ function render() {
       html = createAttractScreen();
   }
 
-  // M6: SMOOTH TRANSITIONS with touch prevention
-  state.isTransitioning = true;
-  app.style.opacity = '0';
-  app.style.transition = 'opacity 0.2s ease-out';
-
-  setTimeout(() => {
+  // M6: SMOOTH TRANSITIONS with touch prevention (skip if noAnimation)
+  if (noAnimation) {
     app.innerHTML = html;
     attachEventListeners();
 
     // Batch 7: Trigger confetti on receipt screen
     if (state.currentScreen === 'receipt') {
-      setTimeout(() => createConfetti(), 500); // Delay for better effect
+      setTimeout(() => createConfetti(), 500);
     }
-
-    // Fade in
-    setTimeout(() => {
-      app.style.opacity = '1';
-      // Re-enable touches after transition completes
-      setTimeout(() => {
-        state.isTransitioning = false;
-      }, 200);
-    }, 10);
 
     // AUTO-SAVE: Persist state after render (T1)
     saveState();
-  }, 200);
+  } else {
+    state.isTransitioning = true;
+    app.style.opacity = '0';
+    app.style.transition = 'opacity 0.2s ease-out';
+
+    setTimeout(() => {
+      app.innerHTML = html;
+      attachEventListeners();
+
+      // Batch 7: Trigger confetti on receipt screen
+      if (state.currentScreen === 'receipt') {
+        setTimeout(() => createConfetti(), 500); // Delay for better effect
+      }
+
+      // Fade in
+      setTimeout(() => {
+        app.style.opacity = '1';
+        // Re-enable touches after transition completes
+        setTimeout(() => {
+          state.isTransitioning = false;
+        }, 200);
+      }, 10);
+
+      // AUTO-SAVE: Persist state after render (T1)
+      saveState();
+    }, 200);
+  }
 }
 
 // ============================================
@@ -1962,7 +1999,7 @@ function attachEventListeners() {
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
       state.emailAddresses.push({ id: generateEmailId(), value: '' });
-      render();
+      render(true); // noAnimation = true to prevent white flash
     });
   }
 
@@ -2003,7 +2040,7 @@ function attachEventListeners() {
     btn.addEventListener('click', () => {
       const emailId = btn.dataset.emailId;
       state.emailAddresses = state.emailAddresses.filter(email => email.id !== emailId);
-      render();
+      render(true); // noAnimation = true to prevent white flash
     });
   });
 
