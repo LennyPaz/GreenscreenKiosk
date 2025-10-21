@@ -414,20 +414,23 @@ function createBackgroundScreen() {
         </div>
 
         <!-- MAIN CONTENT AREA - LARGER PREVIEW -->
-        <div style="flex: 1; display: grid; grid-template-columns: 1fr 500px; gap: 12px; padding: 12px; overflow: hidden;">
-          <!-- LEFT: Background Grid (3 columns, smaller) -->
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; overflow-y: auto; align-content: start;">
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 550px; gap: 12px; padding: 12px; overflow: hidden;">
+          <!-- LEFT: Background Grid (4 columns with proper sizing) -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; overflow-y: auto; align-content: start; padding-right: 8px;">
             ${filteredBackgrounds.map(bg => `
               <button class="background-btn ${state.selectedBackground === bg.id ? 'bg-selected' : ''}"
                       data-id="${bg.id}" data-name="${bg.name}"
-                      style="position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid transparent'};
-                      background: url('${bg.img}') center/cover; transition: all 0.2s; box-shadow: ${state.selectedBackground === bg.id ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-sm)'};">
+                      style="position: relative; border-radius: 10px; overflow: hidden; cursor: pointer;
+                      aspect-ratio: 4/3; min-height: 140px;
+                      border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid var(--color-border)'};
+                      background: url('${bg.img}') center/cover; transition: all 0.2s;
+                      box-shadow: ${state.selectedBackground === bg.id ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
                 <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5));">
-                  <div style="position: absolute; bottom: 6px; left: 6px; right: 6px;">
-                    <div style="color: white; font-size: 12px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
+                  <div style="position: absolute; bottom: 8px; left: 8px; right: 8px;">
+                    <div style="color: white; font-size: 14px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
                   </div>
                 </div>
-                ${state.selectedBackground === bg.id ? '<div style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: bold;">✓</div>' : ''}
+                ${state.selectedBackground === bg.id ? '<div style="position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: white; font-weight: bold;">✓</div>' : ''}
               </button>
             `).join('')}
           </div>
@@ -719,10 +722,10 @@ function createEmailScreen() {
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
-        <!-- LEFT: Keyboard & Inputs (LARGER) -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <!-- Email Inputs (LARGER) -->
-          <div style="max-height: 35%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px;">
+        <!-- LEFT: Keyboard & Inputs (FIXED LAYOUT) -->
+        <div style="display: grid; grid-template-rows: minmax(200px, 30%) 1fr; gap: 12px;">
+          <!-- Email Inputs (FIXED HEIGHT - scrollable) -->
+          <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px;">
             ${state.emailAddresses.map((email, i) => `
               <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
@@ -754,14 +757,14 @@ function createEmailScreen() {
             `}
           </div>
 
-          <!-- Keyboard (MUCH LARGER with shortcuts) -->
-          <div style="flex: 1; display: flex; flex-direction: column;">
+          <!-- Keyboard (FIXED IN REMAINING SPACE) -->
+          <div style="display: flex; flex-direction: column; min-height: 0;">
             ${createKeyboard('email-0', true)}
           </div>
         </div>
 
-        <!-- RIGHT: Summary & Continue -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- RIGHT: Summary & Continue (FIXED LAYOUT) -->
+        <div style="display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px;">
           <!-- Summary Card -->
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: var(--shadow-lg);">
             <div style="font-size: 18px; font-weight: bold; margin-bottom: 16px;">Order Summary</div>
@@ -794,8 +797,11 @@ function createEmailScreen() {
             <div style="font-size: 12px; color: var(--color-gray-500);">of ${maxEmails} maximum</div>
           </div>
 
-          <!-- Continue Button -->
-          <button class="btn btn--gradient-success btn--large" id="nextBtn" style="width: 100%; height: 64px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg); margin-top: auto;">
+          <!-- Spacer to push button to bottom -->
+          <div></div>
+
+          <!-- Continue Button (FIXED AT BOTTOM) -->
+          <button class="btn btn--gradient-success btn--large" id="nextBtn" style="width: 100%; height: 64px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg);">
             CONTINUE →
           </button>
         </div>
