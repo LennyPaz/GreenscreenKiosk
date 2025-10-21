@@ -106,8 +106,14 @@ function generateCustomerNumber() {
 // ============================================
 // ON-SCREEN KEYBOARD
 // ============================================
-function createKeyboard(inputId) {
-  const keys = [
+function createKeyboard(inputId, includeEmailShortcuts = false) {
+  const keys = includeEmailShortcuts ? [
+    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.'],
+    ['@GMAIL', '@YAHOO', '@HOTMAIL', '@OUTLOOK'],
+    ['SPACE', 'DELETE']
+  ] : [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.', 'COM'],
@@ -122,9 +128,20 @@ function createKeyboard(inputId) {
       const classes = ['keyboard__key'];
       if (key === 'SPACE') classes.push('keyboard__key--space');
       if (key === 'DELETE') classes.push('keyboard__key--delete', 'keyboard__key--wide');
+      if (key.startsWith('@')) classes.push('keyboard__key--shortcut');
+
+      const displayText = {
+        'SPACE': 'Space',
+        'DELETE': '⌫ Delete',
+        '@GMAIL': '@gmail.com',
+        '@YAHOO': '@yahoo.com',
+        '@HOTMAIL': '@hotmail.com',
+        '@OUTLOOK': '@outlook.com',
+        'COM': '.com'
+      }[key] || key;
 
       html += `<button class="${classes.join(' ')}" data-key="${key}" data-input-id="${inputId}">
-        ${key === 'SPACE' ? 'Space' : key === 'DELETE' ? '⌫ Delete' : key}
+        ${displayText}
       </button>`;
     });
     html += '</div>';
@@ -151,6 +168,14 @@ function attachKeyboardListeners() {
         input.value += ' ';
       } else if (key === 'COM') {
         input.value += '.com';
+      } else if (key === '@GMAIL') {
+        input.value += '@gmail.com';
+      } else if (key === '@YAHOO') {
+        input.value += '@yahoo.com';
+      } else if (key === '@HOTMAIL') {
+        input.value += '@hotmail.com';
+      } else if (key === '@OUTLOOK') {
+        input.value += '@outlook.com';
       } else if (key) {
         input.value += key.toLowerCase();
       }
@@ -359,23 +384,23 @@ function createBackgroundScreen() {
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
-        <!-- TABS -->
-        <div style="display: flex; gap: 4px; padding: 6px 8px; background: var(--color-gray-100); border-bottom: 2px solid var(--color-border);">
+        <!-- TABS - LARGER FOR TOUCH -->
+        <div style="display: flex; gap: 8px; padding: 10px 12px; background: var(--color-gray-100); border-bottom: 2px solid var(--color-border);">
           ${categories.map(cat => `
             <button class="category-tab ${selectedCategory === cat ? 'category-tab--active' : ''}" data-category="${cat}"
-                    style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s;
+                    style="flex: 1; padding: 16px 20px; border-radius: 10px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s;
                     background: ${selectedCategory === cat ? 'var(--gradient-primary)' : 'white'};
                     color: ${selectedCategory === cat ? 'white' : 'var(--color-gray-700)'};
-                    box-shadow: ${selectedCategory === cat ? 'var(--shadow-md)' : 'var(--shadow-sm)'};">
+                    box-shadow: ${selectedCategory === cat ? 'var(--shadow-md)' : 'var(--shadow-sm)'}; min-height: 60px;">
               ${cat}
             </button>
           `).join('')}
         </div>
 
-        <!-- MAIN CONTENT AREA -->
-        <div style="flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 8px; padding: 8px; overflow: hidden;">
-          <!-- LEFT: Background Grid (4 columns) -->
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 6px; overflow-y: auto;">
+        <!-- MAIN CONTENT AREA - LARGER PREVIEW -->
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 500px; gap: 12px; padding: 12px; overflow: hidden;">
+          <!-- LEFT: Background Grid (3 columns, smaller) -->
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; overflow-y: auto; align-content: start;">
             ${filteredBackgrounds.map(bg => `
               <button class="background-btn ${state.selectedBackground === bg.id ? 'bg-selected' : ''}"
                       data-id="${bg.id}" data-name="${bg.name}"
@@ -397,11 +422,11 @@ function createBackgroundScreen() {
             ${state.selectedBackground && state.selectedBackground !== 'custom' ? (() => {
               const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
               return selectedBg ? `
-                <div style="flex: 1; position: relative; border-radius: 10px; overflow: hidden; background: url('${selectedBg.img}') center/cover; min-height: 200px; box-shadow: var(--shadow-lg);">
+                <div style="flex: 1; position: relative; border-radius: 12px; overflow: hidden; background: url('${selectedBg.img}') center/cover; min-height: 400px; box-shadow: var(--shadow-xl); border: 3px solid var(--color-success);">
                   <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.6));">
-                    <div style="position: absolute; bottom: 12px; left: 12px; right: 12px;">
-                      <div style="color: white; font-size: 20px; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,0.9); margin-bottom: 4px;">${selectedBg.name}</div>
-                      <div style="color: rgba(255,255,255,0.9); font-size: 13px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">✓ Selected</div>
+                    <div style="position: absolute; bottom: 16px; left: 16px; right: 16px;">
+                      <div style="color: white; font-size: 26px; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,0.9); margin-bottom: 6px;">${selectedBg.name}</div>
+                      <div style="color: rgba(255,255,255,0.9); font-size: 16px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">✓ Selected</div>
                     </div>
                   </div>
                 </div>
@@ -662,7 +687,7 @@ function createEmailScreen() {
   }
 
   const config = state.config;
-  const maxEmails = 5;
+  const maxEmails = 8;
   const canAddMore = state.emailAddresses.length < maxEmails;
 
   // Calculate price per email: BASE $10 + $1 per additional email
@@ -677,18 +702,14 @@ function createEmailScreen() {
         <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
       </header>
 
-      <main style="flex: 1; display: grid; grid-template-columns: 55% 45%; gap: 12px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
-        <!-- LEFT: Keyboard & Inputs -->
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <div style="background: var(--color-gray-50); padding: 10px; border-radius: 8px;">
-            <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--color-gray-700);">Email Pricing: $${baseEmailPrice.toFixed(2)} + $1 per additional</div>
-          </div>
-
-          <!-- Email Inputs -->
-          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+      <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
+        <!-- LEFT: Keyboard & Inputs (LARGER) -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <!-- Email Inputs (LARGER) -->
+          <div style="max-height: 35%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px;">
             ${state.emailAddresses.map((email, i) => `
-              <div style="display: flex; gap: 6px; align-items: center;">
-                <span style="font-size: 18px; font-weight: bold; color: var(--color-primary); min-width: 32px;">${i + 1}.</span>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
                 <input
                   type="text"
                   class="input email-input"
@@ -696,31 +717,30 @@ function createEmailScreen() {
                   data-index="${i}"
                   placeholder="email@example.com"
                   value="${email || ''}"
-                  style="flex: 1; font-size: 14px; padding: 10px; border: 2px solid var(--color-border); border-radius: 8px;"
+                  style="flex: 1; font-size: 18px; padding: 14px; border: 3px solid var(--color-border); border-radius: 10px;"
                 >
-                <div style="font-size: 15px; font-weight: bold; color: var(--color-success); min-width: 55px; text-align: right;">${i === 0 ? `$${baseEmailPrice.toFixed(2)}` : '+$1'}</div>
                 ${state.emailAddresses.length > 1 ? `
-                  <button class="btn btn--danger btn--small remove-email-btn" data-index="${i}" style="min-width: 36px; min-height: 36px; padding: 6px; font-size: 16px; border-radius: 8px;">
+                  <button class="btn btn--danger btn--small remove-email-btn" data-index="${i}" style="min-width: 44px; min-height: 44px; padding: 8px; font-size: 18px; border-radius: 10px;">
                     ✕
                   </button>
                 ` : ''}
               </div>
             `).join('')}
+
+            ${canAddMore ? `
+              <button class="btn btn--outline" id="addEmailBtn" style="width: 100%; height: 54px; font-size: 17px; font-weight: 700;">
+                + ADD ANOTHER EMAIL (+$1)
+              </button>
+            ` : `
+              <div style="text-align: center; color: var(--color-warning); font-size: 15px; padding: 12px; background: rgba(255,193,7,0.15); border-radius: 10px; font-weight: 700;">
+                Maximum ${maxEmails} email addresses
+              </div>
+            `}
           </div>
 
-          ${canAddMore ? `
-            <button class="btn btn--outline" id="addEmailBtn" style="width: 100%; height: 48px; font-size: 15px; font-weight: 600;">
-              + ADD ANOTHER EMAIL (+$1)
-            </button>
-          ` : `
-            <div style="text-align: center; color: var(--color-warning); font-size: 13px; padding: 10px; background: rgba(255,193,7,0.1); border-radius: 8px; font-weight: 600;">
-              Maximum ${maxEmails} email addresses
-            </div>
-          `}
-
-          <!-- Keyboard -->
-          <div>
-            ${createKeyboard('email-0')}
+          <!-- Keyboard (MUCH LARGER with shortcuts) -->
+          <div style="flex: 1; display: flex; flex-direction: column;">
+            ${createKeyboard('email-0', true)}
           </div>
         </div>
 
