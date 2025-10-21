@@ -1553,144 +1553,136 @@ function createReceiptScreen() {
   const eventName = state.config?.eventName || 'Special Event';
 
   return `
-    <div class="screen">
-      <main class="screen__body" style="padding: 12px; overflow-y: auto;">
-        <div style="text-align: center; margin-bottom: 12px;">
-          <h1 style="font-size: 22px; font-weight: bold; color: var(--color-success);">Receipts Printing...</h1>
-          <p style="font-size: 13px;">Please take both receipts below - operator will cut along center line</p>
+    <div class="screen" style="background: var(--color-gray-100); overflow: hidden;">
+      <main style="display: flex; flex-direction: column; height: 100vh; padding: 8px; overflow: hidden;">
+        <div style="text-align: center; margin-bottom: 8px;">
+          <h1 style="font-size: 18px; font-weight: bold; color: var(--color-success);">Receipts Ready - Cut Along Dashed Line</h1>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 3px 1fr; gap: 0;">
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: white; border: 2px solid #000; overflow: auto; max-height: calc(100vh - 100px);">
           <!-- CUSTOMER RECEIPT (LEFT SIDE) -->
-          <div class="card card--glass" style="padding: 16px; background: white; color: black; position: relative;">
-            <!-- "VOID UNLESS STAMPED" Watermark -->
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 32px; font-weight: bold; color: rgba(200, 0, 0, 0.08); white-space: nowrap; pointer-events: none; z-index: 1; letter-spacing: 4px;">VOID UNLESS STAMPED</div>
+          <div style="padding: 12px; background: white; color: black; position: relative; border-right: 3px dashed #000; display: flex; flex-direction: column;">
+            <!-- "VOID UNLESS STAMPED" Watermark - ON TOP -->
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 28px; font-weight: bold; color: rgba(200, 0, 0, 0.12); white-space: nowrap; pointer-events: none; z-index: 10; letter-spacing: 3px;">VOID UNLESS STAMPED</div>
 
-            <div style="position: relative; z-index: 2;">
-              <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px;">
-                <div style="font-size: 18px; font-weight: bold;">CUSTOMER RECEIPT</div>
-                <div style="font-size: 24px; font-weight: bold; margin: 8px 0;">#${state.customerNumber}</div>
-                <div style="font-size: 11px;">KEEP THIS RECEIPT</div>
+            <div style="position: relative; z-index: 1;">
+              <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 6px; margin-bottom: 6px;">
+                <div style="font-size: 16px; font-weight: bold;">CUSTOMER RECEIPT</div>
+                <div style="font-size: 20px; font-weight: bold; margin: 4px 0;">#${state.customerNumber}</div>
+                <div style="font-size: 9px; font-weight: bold;">⚠️ KEEP THIS RECEIPT</div>
               </div>
 
-              <div style="font-size: 11px; line-height: 1.4;">
-                <div style="margin-bottom: 8px;"><strong>${eventName}</strong></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+              <div style="font-size: 9px; line-height: 1.3;">
+                <div style="margin-bottom: 6px; font-weight: bold; font-size: 10px;">${eventName}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 6px;">
                   <div><strong>Name:</strong> ${state.customerName}</div>
-                  <div><strong>Party:</strong> ${state.partySize} people</div>
+                  <div><strong>Party:</strong> ${state.partySize}</div>
                   <div><strong>Date:</strong> ${date}</div>
                   <div><strong>Time:</strong> ${time}</div>
                 </div>
 
-                <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px;">
-                  <div><strong>Order Details:</strong></div>
+                <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 6px;">
+                  <div style="font-weight: bold; margin-bottom: 2px;">ORDER:</div>
                   ${state.printQuantity > 0 ? `<div>• ${state.printQuantity} Print${state.printQuantity > 1 ? 's' : ''}</div>` : ''}
                   ${state.emailAddresses.length > 0 ? `<div>• ${state.emailAddresses.length} Email${state.emailAddresses.length > 1 ? 's' : ''}</div>` : ''}
-                  <div>• Payment: ${state.paymentMethod?.toUpperCase()}</div>
-                  <div><strong>Total: $${state.totalPrice.toFixed(2)}</strong></div>
+                  <div>• ${state.paymentMethod?.toUpperCase()}</div>
+                  <div style="font-weight: bold; margin-top: 2px;">TOTAL: $${state.totalPrice.toFixed(2)}</div>
                 </div>
 
-                <div style="border: 2px solid #333; padding: 10px; margin: 10px 0; min-height: 50px; background: rgba(255,255,255,0.9);">
-                  <div style="font-size: 11px; font-weight: bold; margin-bottom: 6px;">☐ PAID</div>
-                  <div style="font-size: 9px; color: #666;">Operator stamp required</div>
+                <div style="border: 2px solid #000; padding: 6px; margin: 6px 0; min-height: 35px; background: white;">
+                  <div style="font-size: 10px; font-weight: bold;">☐ PAID</div>
+                  <div style="font-size: 8px; color: #666;">Stamp required</div>
                 </div>
 
                 ${state.printQuantity > 0 ? `
-                  <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
-                    <div style="font-weight: bold; margin-bottom: 4px;">PRINT PICKUP:</div>
-                    <div>Return at end of event to collect your printed photos</div>
+                  <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 6px; font-size: 9px;">
+                    <div style="font-weight: bold;">PRINT PICKUP:</div>
+                    <div>Return at end of event</div>
                   </div>
 
-                  <div style="border: 2px solid #333; padding: 10px; margin: 10px 0; min-height: 50px; background: rgba(255,255,255,0.9);">
-                    <div style="font-size: 11px; font-weight: bold; margin-bottom: 6px;">☐ PRINTS RECEIVED</div>
-                    <div style="font-size: 9px; color: #666;">Operator stamp when picked up</div>
+                  <div style="border: 2px solid #000; padding: 6px; margin: 6px 0; min-height: 35px; background: white;">
+                    <div style="font-size: 10px; font-weight: bold;">☐ RECEIVED</div>
+                    <div style="font-size: 8px; color: #666;">Stamp when picked up</div>
                   </div>
                 ` : ''}
 
                 ${state.emailAddresses.length > 0 ? `
-                  <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
+                  <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 6px; font-size: 8px;">
                     <div style="font-weight: bold;">EMAIL DELIVERY:</div>
-                    <div>If not received within 2 business days, email:</div>
+                    <div>If not received in 2 days:</div>
                     <div style="font-weight: bold;">support@greenscreenphotos.com</div>
                   </div>
                 ` : ''}
 
-                <div style="border-top: 1px solid #ccc; padding-top: 8px; font-size: 9px;">
-                  <div style="font-weight: bold;">QUESTIONS?</div>
-                  <div>Call: 1-800-PHOTO-HELP</div>
-                  <div style="border: 1px solid #ccc; padding: 6px; margin-top: 4px; min-height: 30px; background: #f9f9f9;">
-                    <div style="color: #999;">Notes:</div>
+                <div style="border-top: 1px solid #000; padding-top: 6px; font-size: 8px;">
+                  <div style="font-weight: bold;">QUESTIONS? Call: 1-800-PHOTO-HELP</div>
+                  <div style="border: 1px solid #000; padding: 4px; margin-top: 3px; min-height: 25px; background: #f9f9f9;">
+                    <div style="color: #999; font-size: 7px;">Notes:</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- VERTICAL CUT LINE -->
-          <div style="background: repeating-linear-gradient(to bottom, #000 0, #000 8px, transparent 8px, transparent 16px); width: 3px; position: relative;">
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 8px 4px; border: 1px solid #000; font-size: 9px; font-weight: bold; writing-mode: vertical-rl; text-orientation: mixed;">✂ CUT HERE ✂</div>
-          </div>
-
           <!-- OPERATOR RECEIPT (RIGHT SIDE) -->
-          <div class="card card--glass" style="padding: 16px; background: #f5f5f5; color: black;">
-            <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px;">
-              <div style="font-size: 16px; font-weight: bold;">CAMERA OPERATOR</div>
-              <div style="font-size: 72px; font-weight: bold; margin: 8px 0; letter-spacing: 4px; line-height: 1;">${state.customerNumber}</div>
+          <div style="padding: 12px; background: #f8f8f8; color: black; display: flex; flex-direction: column;">
+            <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 6px; margin-bottom: 6px;">
+              <div style="font-size: 14px; font-weight: bold;">OPERATOR COPY</div>
+              <div style="font-size: 56px; font-weight: bold; margin: 4px 0; letter-spacing: 3px; line-height: 1;">${state.customerNumber}</div>
             </div>
 
             ${state.customerPhoto ? `
-              <div style="margin-bottom: 10px; text-align: center;">
-                <div style="font-weight: bold; font-size: 10px; margin-bottom: 4px;">CUSTOMER ID PHOTO:</div>
-                <img src="${state.customerPhoto}" alt="Customer ID" style="width: 100%; max-width: 250px; height: auto; border: 2px solid #333; border-radius: 4px; margin: 0 auto; display: block;">
+              <div style="margin-bottom: 6px; text-align: center;">
+                <div style="font-weight: bold; font-size: 8px; margin-bottom: 3px;">CUSTOMER ID:</div>
+                <img src="${state.customerPhoto}" alt="Customer ID" style="width: 100%; max-width: 180px; height: auto; border: 2px solid #000; margin: 0 auto; display: block;">
               </div>
             ` : ''}
 
-            <div style="font-size: 10px; line-height: 1.4; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 4px; margin-bottom: 10px;">
-              <div style="font-weight: bold; margin-bottom: 4px;">COMPACT DATA:</div>
-              <div style="font-family: monospace; font-size: 9px;">N: ${state.customerName} | M: ${state.paymentMethod?.toUpperCase()} | T: ${time} | D: ${date}</div>
-              <div style="font-family: monospace; font-size: 9px;">BG#${state.selectedBackground === 'custom' ? 'CUSTOM' : state.selectedBackground}: ${state.backgroundName} | Party: ${state.partySize}</div>
-              <div style="font-family: monospace; font-size: 9px;">$: $${state.totalPrice.toFixed(2)} | P: ${state.printQuantity} | @: ${state.emailAddresses.length}</div>
+            <div style="font-size: 8px; line-height: 1.3; background: white; padding: 6px; border: 1px solid #000; margin-bottom: 6px;">
+              <div style="font-weight: bold; margin-bottom: 3px;">QUICK DATA:</div>
+              <div style="font-family: monospace; font-size: 7px;">N: ${state.customerName} | ${state.paymentMethod?.toUpperCase()} | ${time}</div>
+              <div style="font-family: monospace; font-size: 7px;">BG#${state.selectedBackground === 'custom' ? 'CUSTOM' : state.selectedBackground}: ${state.backgroundName} | ${state.partySize}p</div>
+              <div style="font-family: monospace; font-size: 7px;">$${state.totalPrice.toFixed(2)} | ${state.printQuantity}P | ${state.emailAddresses.length}E | ${date}</div>
             </div>
 
             ${state.emailAddresses.length > 0 ? `
-              <div style="border: 1px solid #999; padding: 6px; margin-bottom: 10px; font-size: 9px; background: white;">
-                <div style="font-weight: bold;">Email Addresses:</div>
+              <div style="border: 1px solid #000; padding: 5px; margin-bottom: 6px; font-size: 7px; background: white;">
+                <div style="font-weight: bold;">Emails:</div>
                 ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
               </div>
             ` : ''}
 
-            <div style="border: 1px solid #999; padding: 8px; margin-bottom: 10px; min-height: 60px; background: white;">
-              <div style="font-weight: bold; font-size: 10px; margin-bottom: 4px;">OPERATOR NOTES:</div>
-              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
-              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
-              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
-              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
+            <div style="border: 1px solid #000; padding: 5px; margin-bottom: 6px; min-height: 40px; background: white;">
+              <div style="font-weight: bold; font-size: 8px;">NOTES:</div>
+              <div style="border-bottom: 1px dotted #000; margin: 2px 0;"></div>
+              <div style="border-bottom: 1px dotted #000; margin: 2px 0;"></div>
+              <div style="border-bottom: 1px dotted #000; margin: 2px 0;"></div>
             </div>
 
-            <div style="font-weight: bold; margin-bottom: 8px; font-size: 11px; text-align: center; text-decoration: underline;">VERIFICATION STAMPS</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            <div style="font-weight: bold; margin-bottom: 5px; font-size: 9px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 3px;">VERIFICATION STAMPS</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
               ${[
-                { label: 'PHOTO TAKEN', symbol: '☐' },
+                { label: 'PHOTO', symbol: '☐' },
                 { label: 'PAID', symbol: '☐' },
-                { label: 'EMAILS SENT', symbol: '☐' },
-                { label: 'PRINTS READY', symbol: '☐' },
-                { label: 'PICKED UP', symbol: '☐' }
+                { label: 'EMAIL', symbol: '☐' },
+                { label: 'PRINT', symbol: '☐' },
+                { label: 'PICKUP', symbol: '☐' }
               ].map(stamp => `
-                <div style="border: 3px solid #333; padding: 10px; text-align: center; font-size: 11px; min-height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; ${stamp.label === 'PICKED UP' ? 'grid-column: 1 / -1;' : ''}">
-                  <div style="font-size: 20px; margin-bottom: 4px;">${stamp.symbol}</div>
-                  <div style="font-weight: bold; font-size: 9px;">${stamp.label}</div>
+                <div style="border: 2px solid #000; padding: 6px; text-align: center; font-size: 9px; min-height: 38px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; ${stamp.label === 'PICKUP' ? 'grid-column: 1 / -1;' : ''}">
+                  <div style="font-size: 14px; margin-bottom: 2px;">${stamp.symbol}</div>
+                  <div style="font-weight: bold; font-size: 7px;">${stamp.label}</div>
                 </div>
               `).join('')}
             </div>
           </div>
         </div>
 
-        <div style="text-align: center; margin-top: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
-          <button class="btn btn--gradient-primary btn--large" id="printBtn" style="font-size: 16px; padding: 14px 32px;">
-            <span class="icon-printer" style="transform: scale(1.0);"></span>
+        <div style="text-align: center; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; align-items: center;">
+          <button class="btn btn--gradient-primary btn--large" id="printBtn" style="font-size: 16px; padding: 12px 28px;">
+            <span style="font-size: 20px; margin-right: 8px;">🖨️</span>
             <span>PRINT RECEIPTS</span>
           </button>
-          <div style="font-size: 14px; color: var(--color-gray-600);">Returning to start in <span id="countdown">30</span> seconds...</div>
+          <div style="font-size: 12px; color: var(--color-gray-600);">Auto-return in <span id="countdown">30</span>s</div>
         </div>
       </main>
     </div>
