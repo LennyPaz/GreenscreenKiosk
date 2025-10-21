@@ -656,33 +656,33 @@ function createBackgroundScreen() {
           <!-- RIGHT: Preview & Actions -->
           <div style="display: flex; flex-direction: column; gap: 8px;">
             <!-- Large Preview -->
-            ${state.selectedBackground && state.selectedBackground !== 'custom' ? (() => {
-              const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
-              return selectedBg ? `
-                <div style="flex: 1; position: relative; border-radius: 12px; overflow: hidden; background: url('${selectedBg.img}') center/cover; min-height: 400px; box-shadow: var(--shadow-xl); border: 3px solid var(--color-success);">
-                  <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.6));">
-                    <div style="position: absolute; bottom: 16px; left: 16px; right: 16px;">
-                      <div style="color: white; font-size: 26px; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,0.9); margin-bottom: 6px;">${selectedBg.name}</div>
-                      <div style="color: rgba(255,255,255,0.9); font-size: 16px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">✓ Selected</div>
+            <div class="background-preview-area" style="flex: 1;">
+              ${state.selectedBackground && state.selectedBackground !== 'custom' ? (() => {
+                const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
+                return selectedBg ? `
+                  <div style="width: 100%; height: 100%; position: relative; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
+                    <img src="${selectedBg.img}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 12px;">
+                      <div style="color: white; font-size: 18px; font-weight: bold;">${selectedBg.name}</div>
                     </div>
                   </div>
+                ` : '';
+              })() : state.selectedBackground === 'custom' ? `
+                <div style="width: 100%; height: 100%; background: var(--gradient-secondary); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; box-shadow: var(--shadow-lg);">
+                  <div>
+                    <div style="font-size: 40px; margin-bottom: 8px;">★</div>
+                    <div style="font-size: 18px; font-weight: bold; color: white; margin-bottom: 4px;">CUSTOM</div>
+                    <div style="font-size: 12px; color: rgba(255,255,255,0.9);">Tell photographer</div>
+                  </div>
                 </div>
-              ` : '';
-            })() : state.selectedBackground === 'custom' ? `
-              <div style="flex: 1; background: var(--gradient-secondary); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; box-shadow: var(--shadow-lg);">
-                <div>
-                  <div style="font-size: 40px; margin-bottom: 8px;">★</div>
-                  <div style="font-size: 18px; font-weight: bold; color: white; margin-bottom: 4px;">CUSTOM</div>
-                  <div style="font-size: 12px; color: rgba(255,255,255,0.9);">Tell photographer</div>
+              ` : `
+                <div style="width: 100%; height: 100%; background: var(--color-gray-100); border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--color-border);">
+                  <div style="color: var(--color-gray-400); font-size: 14px; text-align: center;">
+                    Select a<br>background
+                  </div>
                 </div>
-              </div>
-            ` : `
-              <div style="flex: 1; background: var(--color-gray-100); border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--color-border);">
-                <div style="color: var(--color-gray-400); font-size: 14px; text-align: center;">
-                  Select a<br>background
-                </div>
-              </div>
-            `}
+              `}
+            </div>
 
             <!-- Custom Background Option (D1: Improved explanation) -->
             <button class="background-btn ${state.selectedBackground === 'custom' ? 'bg-selected' : ''}"
@@ -1557,71 +1557,85 @@ function createReceiptScreen() {
       <main class="screen__body" style="padding: 12px; overflow-y: auto;">
         <div style="text-align: center; margin-bottom: 12px;">
           <h1 style="font-size: 22px; font-weight: bold; color: var(--color-success);">Receipts Printing...</h1>
-          <p style="font-size: 13px;">Please take both receipts below</p>
+          <p style="font-size: 13px;">Please take both receipts below - operator will cut along center line</p>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <!-- CUSTOMER RECEIPT -->
-          <div class="card card--glass" style="padding: 16px; background: white; color: black;">
-            <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px;">
-              <div style="font-size: 18px; font-weight: bold;">CUSTOMER RECEIPT</div>
-              <div style="font-size: 24px; font-weight: bold; margin: 8px 0;">#${state.customerNumber}</div>
-              <div style="font-size: 11px;">KEEP THIS RECEIPT</div>
-            </div>
+        <div style="display: grid; grid-template-columns: 1fr 3px 1fr; gap: 0;">
+          <!-- CUSTOMER RECEIPT (LEFT SIDE) -->
+          <div class="card card--glass" style="padding: 16px; background: white; color: black; position: relative;">
+            <!-- "VOID UNLESS STAMPED" Watermark -->
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 32px; font-weight: bold; color: rgba(200, 0, 0, 0.08); white-space: nowrap; pointer-events: none; z-index: 1; letter-spacing: 4px;">VOID UNLESS STAMPED</div>
 
-            <div style="font-size: 11px; line-height: 1.4;">
-              <div style="margin-bottom: 8px;"><strong>${eventName}</strong></div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
-                <div><strong>Name:</strong> ${state.customerName}</div>
-                <div><strong>Party Size:</strong> ${state.partySize}</div>
-                <div><strong>Date:</strong> ${date}</div>
-                <div><strong>Time:</strong> ${time}</div>
+            <div style="position: relative; z-index: 2;">
+              <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px;">
+                <div style="font-size: 18px; font-weight: bold;">CUSTOMER RECEIPT</div>
+                <div style="font-size: 24px; font-weight: bold; margin: 8px 0;">#${state.customerNumber}</div>
+                <div style="font-size: 11px;">KEEP THIS RECEIPT</div>
               </div>
 
-              <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px;">
-                <div><strong>Order Details:</strong></div>
-                ${state.printQuantity > 0 ? `<div>• ${state.printQuantity} Print${state.printQuantity > 1 ? 's' : ''}</div>` : ''}
-                ${state.emailAddresses.length > 0 ? `<div>• ${state.emailAddresses.length} Email${state.emailAddresses.length > 1 ? 's' : ''}</div>` : ''}
-                <div>• Payment: ${state.paymentMethod?.toUpperCase()}</div>
-                <div><strong>Total: $${state.totalPrice.toFixed(2)}</strong></div>
-              </div>
-
-              <div style="border: 2px dashed #666; padding: 8px; margin: 8px 0; min-height: 40px;">
-                <div style="font-size: 10px; text-align: center; color: #666;">PAID STAMP</div>
-              </div>
-
-              <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
-                <div style="font-weight: bold; margin-bottom: 4px;">PRINT PICKUP:</div>
-                <div>Return at end of event to collect your printed photos</div>
-              </div>
-
-              <div style="border: 2px dashed #666; padding: 8px; margin: 8px 0; min-height: 40px;">
-                <div style="font-size: 10px; text-align: center; color: #666;">PRINTS RECEIVED STAMP</div>
-              </div>
-
-              ${state.emailAddresses.length > 0 ? `
-                <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
-                  <div style="font-weight: bold;">EMAIL DELIVERY:</div>
-                  <div>If not received within 2 business days, email:</div>
-                  <div style="font-weight: bold;">support@greenscreenphotos.com</div>
+              <div style="font-size: 11px; line-height: 1.4;">
+                <div style="margin-bottom: 8px;"><strong>${eventName}</strong></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                  <div><strong>Name:</strong> ${state.customerName}</div>
+                  <div><strong>Party:</strong> ${state.partySize} people</div>
+                  <div><strong>Date:</strong> ${date}</div>
+                  <div><strong>Time:</strong> ${time}</div>
                 </div>
-              ` : ''}
 
-              <div style="border-top: 1px solid #ccc; padding-top: 8px; font-size: 9px;">
-                <div style="font-weight: bold;">QUESTIONS?</div>
-                <div>Call: 1-800-PHOTO-HELP</div>
-                <div style="border: 1px solid #ccc; padding: 6px; margin-top: 4px; min-height: 30px; background: #f9f9f9;">
-                  <div style="color: #999;">Notes:</div>
+                <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px;">
+                  <div><strong>Order Details:</strong></div>
+                  ${state.printQuantity > 0 ? `<div>• ${state.printQuantity} Print${state.printQuantity > 1 ? 's' : ''}</div>` : ''}
+                  ${state.emailAddresses.length > 0 ? `<div>• ${state.emailAddresses.length} Email${state.emailAddresses.length > 1 ? 's' : ''}</div>` : ''}
+                  <div>• Payment: ${state.paymentMethod?.toUpperCase()}</div>
+                  <div><strong>Total: $${state.totalPrice.toFixed(2)}</strong></div>
+                </div>
+
+                <div style="border: 2px solid #333; padding: 10px; margin: 10px 0; min-height: 50px; background: rgba(255,255,255,0.9);">
+                  <div style="font-size: 11px; font-weight: bold; margin-bottom: 6px;">☐ PAID</div>
+                  <div style="font-size: 9px; color: #666;">Operator stamp required</div>
+                </div>
+
+                ${state.printQuantity > 0 ? `
+                  <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
+                    <div style="font-weight: bold; margin-bottom: 4px;">PRINT PICKUP:</div>
+                    <div>Return at end of event to collect your printed photos</div>
+                  </div>
+
+                  <div style="border: 2px solid #333; padding: 10px; margin: 10px 0; min-height: 50px; background: rgba(255,255,255,0.9);">
+                    <div style="font-size: 11px; font-weight: bold; margin-bottom: 6px;">☐ PRINTS RECEIVED</div>
+                    <div style="font-size: 9px; color: #666;">Operator stamp when picked up</div>
+                  </div>
+                ` : ''}
+
+                ${state.emailAddresses.length > 0 ? `
+                  <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
+                    <div style="font-weight: bold;">EMAIL DELIVERY:</div>
+                    <div>If not received within 2 business days, email:</div>
+                    <div style="font-weight: bold;">support@greenscreenphotos.com</div>
+                  </div>
+                ` : ''}
+
+                <div style="border-top: 1px solid #ccc; padding-top: 8px; font-size: 9px;">
+                  <div style="font-weight: bold;">QUESTIONS?</div>
+                  <div>Call: 1-800-PHOTO-HELP</div>
+                  <div style="border: 1px solid #ccc; padding: 6px; margin-top: 4px; min-height: 30px; background: #f9f9f9;">
+                    <div style="color: #999;">Notes:</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- CAMERAMAN RECEIPT -->
+          <!-- VERTICAL CUT LINE -->
+          <div style="background: repeating-linear-gradient(to bottom, #000 0, #000 8px, transparent 8px, transparent 16px); width: 3px; position: relative;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 8px 4px; border: 1px solid #000; font-size: 9px; font-weight: bold; writing-mode: vertical-rl; text-orientation: mixed;">✂ CUT HERE ✂</div>
+          </div>
+
+          <!-- OPERATOR RECEIPT (RIGHT SIDE) -->
           <div class="card card--glass" style="padding: 16px; background: #f5f5f5; color: black;">
             <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px;">
               <div style="font-size: 16px; font-weight: bold;">CAMERA OPERATOR</div>
-              <div style="font-size: 48px; font-weight: bold; margin: 8px 0; letter-spacing: 4px;">${state.customerNumber}</div>
+              <div style="font-size: 72px; font-weight: bold; margin: 8px 0; letter-spacing: 4px; line-height: 1;">${state.customerNumber}</div>
             </div>
 
             ${state.customerPhoto ? `
@@ -1631,39 +1645,42 @@ function createReceiptScreen() {
               </div>
             ` : ''}
 
-            <div style="font-size: 11px; line-height: 1.3;">
-              <div style="display: grid; gap: 4px; margin-bottom: 12px;">
-                <div><strong>Name:</strong> ${state.customerName}</div>
-                <div><strong>Date:</strong> ${date} <strong>Time:</strong> ${time}</div>
-                <div><strong>Party Size:</strong> ${state.partySize} people</div>
-                <div><strong>Background:</strong> ${state.backgroundName}</div>
-                <div><strong>Delivery:</strong> ${state.deliveryMethod === 'both' ? 'Print + Email' : state.deliveryMethod === 'print' ? 'Print Only' : 'Email Only'}</div>
-                ${state.printQuantity > 0 ? `<div><strong>Prints:</strong> ${state.printQuantity}</div>` : ''}
-                ${state.emailAddresses.length > 0 ? `<div><strong>Emails:</strong> ${state.emailAddresses.length}</div>` : ''}
-              </div>
+            <div style="font-size: 10px; line-height: 1.4; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 4px; margin-bottom: 10px;">
+              <div style="font-weight: bold; margin-bottom: 4px;">COMPACT DATA:</div>
+              <div style="font-family: monospace; font-size: 9px;">N: ${state.customerName} | M: ${state.paymentMethod?.toUpperCase()} | T: ${time} | D: ${date}</div>
+              <div style="font-family: monospace; font-size: 9px;">BG#${state.selectedBackground === 'custom' ? 'CUSTOM' : state.selectedBackground}: ${state.backgroundName} | Party: ${state.partySize}</div>
+              <div style="font-family: monospace; font-size: 9px;">$: $${state.totalPrice.toFixed(2)} | P: ${state.printQuantity} | @: ${state.emailAddresses.length}</div>
+            </div>
 
-              ${state.emailAddresses.length > 0 ? `
-                <div style="border: 1px solid #999; padding: 6px; margin-bottom: 10px; font-size: 9px;">
-                  <div style="font-weight: bold;">Email Addresses:</div>
-                  ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
+            ${state.emailAddresses.length > 0 ? `
+              <div style="border: 1px solid #999; padding: 6px; margin-bottom: 10px; font-size: 9px; background: white;">
+                <div style="font-weight: bold;">Email Addresses:</div>
+                ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
+              </div>
+            ` : ''}
+
+            <div style="border: 1px solid #999; padding: 8px; margin-bottom: 10px; min-height: 60px; background: white;">
+              <div style="font-weight: bold; font-size: 10px; margin-bottom: 4px;">OPERATOR NOTES:</div>
+              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
+              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
+              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
+              <div style="border-bottom: 1px dotted #999; margin: 4px 0;"></div>
+            </div>
+
+            <div style="font-weight: bold; margin-bottom: 8px; font-size: 11px; text-align: center; text-decoration: underline;">VERIFICATION STAMPS</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              ${[
+                { label: 'PHOTO TAKEN', symbol: '☐' },
+                { label: 'PAID', symbol: '☐' },
+                { label: 'EMAILS SENT', symbol: '☐' },
+                { label: 'PRINTS READY', symbol: '☐' },
+                { label: 'PICKED UP', symbol: '☐' }
+              ].map(stamp => `
+                <div style="border: 3px solid #333; padding: 10px; text-align: center; font-size: 11px; min-height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; ${stamp.label === 'PICKED UP' ? 'grid-column: 1 / -1;' : ''}">
+                  <div style="font-size: 20px; margin-bottom: 4px;">${stamp.symbol}</div>
+                  <div style="font-weight: bold; font-size: 9px;">${stamp.label}</div>
                 </div>
-              ` : ''}
-
-              <div style="border: 1px solid #999; padding: 6px; margin-bottom: 10px; min-height: 50px;">
-                <div style="font-weight: bold; font-size: 10px;">NOTES:</div>
-                <div style="border-bottom: 1px dotted #ccc; margin: 4px 0;"></div>
-                <div style="border-bottom: 1px dotted #ccc; margin: 4px 0;"></div>
-                <div style="border-bottom: 1px dotted #ccc; margin: 4px 0;"></div>
-              </div>
-
-              <div style="font-weight: bold; margin-bottom: 6px; font-size: 10px;">VERIFICATION STAMPS:</div>
-              <div style="display: grid; gap: 4px;">
-                ${['PAID', 'PHOTO TAKEN', 'EMAILS SENT', 'PRINTS MADE', 'PICKED UP'].map(label => `
-                  <div style="border: 2px solid #666; padding: 6px; text-align: center; font-size: 9px; min-height: 32px;">
-                    <div style="color: #999;">${label}</div>
-                  </div>
-                `).join('')}
-              </div>
+              `).join('')}
             </div>
           </div>
         </div>
@@ -1873,7 +1890,49 @@ function attachEventListeners() {
       const id = btn.dataset.id;
       state.selectedBackground = id === 'custom' ? 'custom' : parseInt(id);
       state.backgroundName = btn.dataset.name;
-      render(); // Re-render to update selection state
+
+      // Update UI without re-rendering to prevent image refresh
+      backgroundBtns.forEach(b => b.classList.remove('bg-selected'));
+      btn.classList.add('bg-selected');
+
+      // Update the preview if needed
+      const preview = document.querySelector('.background-preview-area');
+      if (preview && state.selectedBackground && state.selectedBackground !== 'custom') {
+        const backgrounds = [
+          { id: 1, name: 'Beach Sunset', category: 'Nature', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop' },
+          { id: 3, name: 'Mountain Vista', category: 'Nature', img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop' },
+          { id: 4, name: 'Tropical Paradise', category: 'Nature', img: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=300&fit=crop' },
+          { id: 7, name: 'Desert Dunes', category: 'Nature', img: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=400&h=300&fit=crop' },
+          { id: 8, name: 'Forest Path', category: 'Nature', img: 'https://images.unsplash.com/photo-1511497584788-876760111969?w=400&h=300&fit=crop' },
+          { id: 9, name: 'Waterfall', category: 'Nature', img: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=400&h=300&fit=crop' },
+          { id: 2, name: 'City Skyline', category: 'Urban', img: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop' },
+          { id: 10, name: 'Brooklyn Bridge', category: 'Urban', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=300&fit=crop' },
+          { id: 11, name: 'Tokyo Neon', category: 'Urban', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=300&fit=crop' },
+          { id: 12, name: 'Paris Streets', category: 'Urban', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop' },
+          { id: 5, name: 'Northern Lights', category: 'Sky', img: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=400&h=300&fit=crop' },
+          { id: 6, name: 'Starry Night', category: 'Sky', img: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=400&h=300&fit=crop' },
+          { id: 13, name: 'Galaxy', category: 'Sky', img: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400&h=300&fit=crop' },
+          { id: 14, name: 'Sunset Clouds', category: 'Sky', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&h=300&fit=crop' },
+          { id: 15, name: 'Blue Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=400&h=300&fit=crop' },
+          { id: 16, name: 'Pink Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400&h=300&fit=crop' },
+          { id: 17, name: 'Bokeh Lights', category: 'Abstract', img: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=300&fit=crop' },
+        ];
+        const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
+        if (selectedBg) {
+          preview.innerHTML = `
+            <div style="position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
+              <img src="${selectedBg.img}" style="width: 100%; height: 100%; object-fit: cover;">
+              <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 12px;">
+                <div style="color: white; font-size: 18px; font-weight: bold;">${selectedBg.name}</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // Enable next button
+      const nextBtn = document.getElementById('nextBtn');
+      if (nextBtn) nextBtn.disabled = false;
     });
   });
 
