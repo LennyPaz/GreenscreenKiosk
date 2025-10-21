@@ -485,13 +485,16 @@ function createBackgroundScreen() {
               </div>
             `}
 
-            <!-- Custom Background Option -->
+            <!-- Custom Background Option (D1: Improved explanation) -->
             <button class="background-btn ${state.selectedBackground === 'custom' ? 'bg-selected' : ''}"
                     data-id="custom" data-name="Custom"
-                    style="height: 60px; background: var(--gradient-secondary); border-radius: 8px; border: ${state.selectedBackground === 'custom' ? '4px solid var(--color-success)' : '3px solid transparent'}; cursor: pointer; transition: all 0.2s; box-shadow: ${state.selectedBackground === 'custom' ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: white; font-weight: bold; font-size: 14px;">
-                <span style="font-size: 20px;">★</span>
-                CUSTOM BACKGROUND
+                    style="height: 80px; background: var(--gradient-secondary); border-radius: 8px; border: ${state.selectedBackground === 'custom' ? '4px solid var(--color-success)' : '3px solid transparent'}; cursor: pointer; transition: all 0.2s; box-shadow: ${state.selectedBackground === 'custom' ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'}; padding: 12px;">
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white;">
+                <div style="display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 16px;">
+                  <span style="font-size: 20px;">★</span>
+                  CUSTOM BACKGROUND
+                </div>
+                <div style="font-size: 11px; opacity: 0.9; text-align: center;">Request a specific background from the photographer</div>
               </div>
             </button>
 
@@ -515,10 +518,10 @@ function createBackgroundScreen() {
 function createPartySizeScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Party Size</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Party Size</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; max-height: calc(100vh - 36px - 40px);">
@@ -564,12 +567,20 @@ function createPartySizeScreen() {
 function createDeliveryScreen() {
   const config = state.config;
 
+  // Calculate pricing ranges for display (MO6)
+  const printMin = config?.printPricing?.[1] || 10;
+  const printMax = config?.printPricing?.[8] || 45;
+  const emailBase = config?.emailPricing?.[1] || 10;
+  const emailMax = emailBase + 4; // Base + 4 additional emails
+  const bothMin = printMin + emailBase;
+  const bothMax = printMax + emailMax;
+
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Delivery Method</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Delivery Method</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
@@ -590,7 +601,7 @@ function createDeliveryScreen() {
               • Take home tonight
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-success)'};">
-              $${config?.basePrice?.toFixed(2) || '10.00'}+
+              $${printMin.toFixed(2)} - $${printMax.toFixed(2)}
             </div>
           </button>
 
@@ -608,7 +619,7 @@ function createDeliveryScreen() {
               • Easy sharing
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-success)'};">
-              $${config?.emailPricing?.[1]?.toFixed(2) || '10.00'}+
+              $${emailBase.toFixed(2)} - $${emailMax.toFixed(2)}
             </div>
           </button>
 
@@ -631,7 +642,7 @@ function createDeliveryScreen() {
               • Best deal!
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-success)'};">
-              Great Value!
+              $${bothMin.toFixed(2)} - $${bothMax.toFixed(2)}
             </div>
           </button>
         </div>
@@ -660,10 +671,10 @@ function createQuantityScreen() {
   if (isPrintSelected && state.printQuantity === 0) {
     return `
       <div class="screen">
-        <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-          <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-          <div style="font-size: 15px; font-weight: 600;">Print Quantity</div>
-          <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+        <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+          <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+          <div style="font-size: 16px; font-weight: 600;">Print Quantity</div>
+          <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
         </header>
 
         <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
@@ -735,10 +746,10 @@ function createEmailScreen() {
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Email Addresses</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Email Addresses</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
@@ -838,10 +849,10 @@ function createEmailScreen() {
 function createNameScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Your Name</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Your Name</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; max-height: calc(100vh - 36px - 40px); overflow: hidden;">
@@ -897,10 +908,10 @@ function createReviewScreen() {
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Review Order</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Review Order</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 16px; padding: 16px; max-height: calc(100vh - 36px - 40px);">
@@ -996,12 +1007,22 @@ function createReviewScreen() {
 // SCREEN 10: PAYMENT METHOD - REDESIGNED
 // ============================================
 function createPaymentScreen() {
+  const config = state.config;
+
+  // Filter payment methods by config (D5)
+  const paymentMethods = [
+    { id: 'cash', label: 'CASH', emoji: '💵', enabled: config?.features?.cash !== false },
+    { id: 'debit', label: 'DEBIT', emoji: '💳', enabled: true }, // Always available
+    { id: 'credit', label: 'CREDIT', emoji: '💳', enabled: config?.features?.creditCard !== false },
+    { id: 'check', label: 'CHECK', emoji: '🏦', enabled: config?.features?.check === true }
+  ].filter(method => method.enabled);
+
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Payment Method</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Payment Method</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
@@ -1013,43 +1034,24 @@ function createPaymentScreen() {
 
         <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 32px; text-align: center;">How will you pay?</h1>
 
-        <!-- Payment Options -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%; max-width: 1000px; margin-bottom: 30px;">
-          <button class="payment-btn" data-method="cash"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'cash' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'cash' ? 'var(--gradient-success)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'cash' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'cash' ? '💵' : '💵'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'cash' ? 'white' : 'var(--color-gray-900)'};">CASH</div>
-          </button>
+        <!-- Payment Options (D5: Filtered by config) -->
+        <div style="display: grid; grid-template-columns: repeat(${Math.min(paymentMethods.length, 4)}, 1fr); gap: 16px; width: 100%; max-width: ${paymentMethods.length * 260}px; margin-bottom: 30px;">
+          ${paymentMethods.map((method, index) => {
+            const gradients = ['var(--gradient-success)', 'var(--gradient-primary)', 'var(--gradient-ocean)', 'var(--gradient-secondary)'];
+            const gradient = gradients[index % gradients.length];
+            const isSelected = state.paymentMethod === method.id;
 
-          <button class="payment-btn" data-method="debit"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'debit' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'debit' ? 'var(--gradient-primary)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'debit' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'debit' ? '💳' : '💳'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'debit' ? 'white' : 'var(--color-gray-900)'};">DEBIT</div>
-          </button>
-
-          <button class="payment-btn" data-method="credit"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'credit' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'credit' ? 'var(--gradient-ocean)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'credit' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'credit' ? '💳' : '💳'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'credit' ? 'white' : 'var(--color-gray-900)'};">CREDIT</div>
-          </button>
-
-          <button class="payment-btn" data-method="check"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'check' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'check' ? 'var(--gradient-secondary)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'check' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'check' ? '🏦' : '🏦'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'check' ? 'white' : 'var(--color-gray-900)'};">CHECK</div>
-          </button>
+            return `
+              <button class="payment-btn" data-method="${method.id}"
+                      style="height: 200px; border-radius: 16px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
+                      background: ${isSelected ? gradient : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
+                      box-shadow: ${isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
+                      display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="font-size: 64px; margin-bottom: 16px;">${method.emoji}</div>
+                <div style="font-size: 22px; font-weight: bold; color: ${isSelected ? 'white' : 'var(--color-gray-900)'};">${method.label}</div>
+              </button>
+            `;
+          }).join('')}
         </div>
 
         <!-- Continue Button -->
@@ -1070,10 +1072,10 @@ function createPaymentScreen() {
 function createPhotoScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Customer ID Photo</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Customer ID Photo</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
@@ -1110,10 +1112,10 @@ function createPhotoScreen() {
 function createPhotoConfirmScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
         <div style="min-width: 80px;"></div>
-        <div style="font-size: 15px; font-weight: 600;">Review Photo</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+        <div style="font-size: 16px; font-weight: 600;">Review Photo</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px); gap: 20px;">
@@ -1617,7 +1619,7 @@ function attachEventListeners() {
     });
   });
 
-  // Add email button (with real-time pricing)
+  // Add email button (with real-time pricing and duplicate prevention - T3)
   const addEmailBtn = document.getElementById('addEmailBtn');
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
@@ -1625,6 +1627,37 @@ function attachEventListeners() {
       render();
     });
   }
+
+  // Validate for duplicates on blur (T3)
+  emailInputs.forEach(input => {
+    input.addEventListener('blur', (e) => {
+      const currentEmail = e.target.value.trim().toLowerCase();
+      if (!currentEmail) return;
+
+      const currentIndex = parseInt(e.target.dataset.index);
+      const hasDuplicate = state.emailAddresses.some((email, index) =>
+        index !== currentIndex && email.trim().toLowerCase() === currentEmail
+      );
+
+      if (hasDuplicate) {
+        // Show warning styling
+        e.target.style.borderColor = 'var(--color-warning)';
+        e.target.style.background = 'rgba(255, 193, 7, 0.1)';
+
+        // Show temporary message
+        const warning = document.createElement('div');
+        warning.textContent = 'This email is already added';
+        warning.style.cssText = 'color: var(--color-warning); font-size: 12px; margin-top: 4px;';
+        e.target.parentElement.appendChild(warning);
+
+        setTimeout(() => {
+          warning.remove();
+          e.target.style.borderColor = '';
+          e.target.style.background = '';
+        }, 3000);
+      }
+    });
+  });
 
   // Remove email buttons (with real-time pricing)
   const removeEmailBtns = document.querySelectorAll('.remove-email-btn');
@@ -1826,7 +1859,7 @@ function attachEventListeners() {
 
   const countdownEl = document.getElementById('countdown');
   if (countdownEl) {
-    let timeLeft = 30;
+    let timeLeft = 60; // IMPROVED: Increased from 30 to 60 seconds (MO7)
     const countdownInterval = setInterval(() => {
       timeLeft--;
       if (countdownEl) countdownEl.textContent = timeLeft.toString();
@@ -1853,6 +1886,23 @@ function attachEventListeners() {
         render();
       }
     }, 1000);
+
+    // IMPROVED: Reset timer on user interaction (MO7)
+    const resetTimer = () => {
+      timeLeft = 60;
+    };
+
+    // Reset on any interaction
+    document.addEventListener('mousemove', resetTimer, { once: false, passive: true });
+    document.addEventListener('touchstart', resetTimer, { once: false, passive: true });
+    document.addEventListener('click', resetTimer, { once: false, passive: true });
+
+    // Clean up event listeners when countdown finishes
+    setTimeout(() => {
+      document.removeEventListener('mousemove', resetTimer);
+      document.removeEventListener('touchstart', resetTimer);
+      document.removeEventListener('click', resetTimer);
+    }, 60000);
   }
 
   // ==================== NEXT BUTTON ====================
