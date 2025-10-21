@@ -1432,6 +1432,50 @@ function capturePhoto() {
 }
 
 // ============================================
+// CELEBRATION EFFECTS (Batch 7)
+// ============================================
+/**
+ * Create confetti celebration effect
+ */
+function createConfetti() {
+  const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+  const confettiContainer = document.createElement('div');
+  confettiContainer.id = 'confettiContainer';
+  confettiContainer.style.cssText = 'position: fixed; inset: 0; pointer-events: none; z-index: 9999; overflow: hidden;';
+  document.body.appendChild(confettiContainer);
+
+  // Create 50 confetti pieces
+  for (let i = 0; i < 50; i++) {
+    const confetti = document.createElement('div');
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const left = Math.random() * 100;
+    const animationDuration = 2 + Math.random() * 3; // 2-5 seconds
+    const size = 8 + Math.random() * 8; // 8-16px
+    const delay = Math.random() * 0.5; // 0-0.5s delay
+
+    confetti.style.cssText = `
+      position: absolute;
+      left: ${left}%;
+      top: -20px;
+      width: ${size}px;
+      height: ${size}px;
+      background: ${color};
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      animation: confettiFall ${animationDuration}s ease-in-out ${delay}s forwards;
+      transform: rotate(${Math.random() * 360}deg);
+      opacity: 0.8;
+    `;
+
+    confettiContainer.appendChild(confetti);
+  }
+
+  // Remove confetti after animation completes
+  setTimeout(() => {
+    confettiContainer.remove();
+  }, 5500);
+}
+
+// ============================================
 // SCREEN 12: PROCESSING - IMPROVED (MO11)
 // ============================================
 function createProcessingScreen() {
@@ -1760,6 +1804,11 @@ function render() {
   setTimeout(() => {
     app.innerHTML = html;
     attachEventListeners();
+
+    // Batch 7: Trigger confetti on receipt screen
+    if (state.currentScreen === 'receipt') {
+      setTimeout(() => createConfetti(), 500); // Delay for better effect
+    }
 
     // Fade in
     setTimeout(() => {
