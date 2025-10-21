@@ -1589,20 +1589,20 @@ function createReceiptScreen() {
                   <div style="font-weight: bold; margin-top: 4px;">TOTAL: $${state.totalPrice.toFixed(2)}</div>
                 </div>
 
-                <div style="border: 2px solid #000; width: 50px; height: 50px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 8px auto;">
-                  <div style="font-size: 14px; font-weight: bold;">☐</div>
-                  <div style="font-size: 8px; color: #666; margin-top: 2px;">PAID</div>
+                <div style="border: 2px solid #000; width: 65px; height: 65px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 8px 0;">
+                  <div style="font-size: 16px; font-weight: bold;">☐</div>
+                  <div style="font-size: 9px; color: #666; margin-top: 2px;">PAID</div>
                 </div>
 
                 ${state.printQuantity > 0 ? `
-                  <div style="border-top: 1px solid #000; padding-top: 8px; margin-bottom: 8px; font-size: 10px; text-align: center;">
+                  <div style="border-top: 1px solid #000; padding-top: 8px; margin-bottom: 8px; font-size: 10px;">
                     <div style="font-weight: bold; margin-bottom: 4px;">PRINT PICKUP:</div>
                     <div>Return at end of event</div>
                   </div>
 
-                  <div style="border: 2px solid #000; width: 50px; height: 50px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 8px auto;">
-                    <div style="font-size: 14px; font-weight: bold;">☐</div>
-                    <div style="font-size: 8px; color: #666; margin-top: 2px;">RCVD</div>
+                  <div style="border: 2px solid #000; width: 65px; height: 65px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 8px 0;">
+                    <div style="font-size: 16px; font-weight: bold;">☐</div>
+                    <div style="font-size: 9px; color: #666; margin-top: 2px;">RCVD</div>
                   </div>
                 ` : ''}
 
