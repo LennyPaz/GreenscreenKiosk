@@ -656,33 +656,33 @@ function createBackgroundScreen() {
           <!-- RIGHT: Preview & Actions -->
           <div style="display: flex; flex-direction: column; gap: 8px;">
             <!-- Large Preview -->
-            ${state.selectedBackground && state.selectedBackground !== 'custom' ? (() => {
-              const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
-              return selectedBg ? `
-                <div style="flex: 1; position: relative; border-radius: 12px; overflow: hidden; background: url('${selectedBg.img}') center/cover; min-height: 400px; box-shadow: var(--shadow-xl); border: 3px solid var(--color-success);">
-                  <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.6));">
-                    <div style="position: absolute; bottom: 16px; left: 16px; right: 16px;">
-                      <div style="color: white; font-size: 26px; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,0.9); margin-bottom: 6px;">${selectedBg.name}</div>
-                      <div style="color: rgba(255,255,255,0.9); font-size: 16px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">✓ Selected</div>
+            <div class="background-preview-area" style="flex: 1;">
+              ${state.selectedBackground && state.selectedBackground !== 'custom' ? (() => {
+                const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
+                return selectedBg ? `
+                  <div style="width: 100%; height: 100%; position: relative; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
+                    <img src="${selectedBg.img}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 12px;">
+                      <div style="color: white; font-size: 18px; font-weight: bold;">${selectedBg.name}</div>
                     </div>
                   </div>
+                ` : '';
+              })() : state.selectedBackground === 'custom' ? `
+                <div style="width: 100%; height: 100%; background: var(--gradient-secondary); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; box-shadow: var(--shadow-lg);">
+                  <div>
+                    <div style="font-size: 40px; margin-bottom: 8px;">★</div>
+                    <div style="font-size: 18px; font-weight: bold; color: white; margin-bottom: 4px;">CUSTOM</div>
+                    <div style="font-size: 12px; color: rgba(255,255,255,0.9);">Tell photographer</div>
+                  </div>
                 </div>
-              ` : '';
-            })() : state.selectedBackground === 'custom' ? `
-              <div style="flex: 1; background: var(--gradient-secondary); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; box-shadow: var(--shadow-lg);">
-                <div>
-                  <div style="font-size: 40px; margin-bottom: 8px;">★</div>
-                  <div style="font-size: 18px; font-weight: bold; color: white; margin-bottom: 4px;">CUSTOM</div>
-                  <div style="font-size: 12px; color: rgba(255,255,255,0.9);">Tell photographer</div>
+              ` : `
+                <div style="width: 100%; height: 100%; background: var(--color-gray-100); border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--color-border);">
+                  <div style="color: var(--color-gray-400); font-size: 14px; text-align: center;">
+                    Select a<br>background
+                  </div>
                 </div>
-              </div>
-            ` : `
-              <div style="flex: 1; background: var(--color-gray-100); border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--color-border);">
-                <div style="color: var(--color-gray-400); font-size: 14px; text-align: center;">
-                  Select a<br>background
-                </div>
-              </div>
-            `}
+              `}
+            </div>
 
             <!-- Custom Background Option (D1: Improved explanation) -->
             <button class="background-btn ${state.selectedBackground === 'custom' ? 'bg-selected' : ''}"
@@ -1873,7 +1873,49 @@ function attachEventListeners() {
       const id = btn.dataset.id;
       state.selectedBackground = id === 'custom' ? 'custom' : parseInt(id);
       state.backgroundName = btn.dataset.name;
-      render(); // Re-render to update selection state
+
+      // Update UI without re-rendering to prevent image refresh
+      backgroundBtns.forEach(b => b.classList.remove('bg-selected'));
+      btn.classList.add('bg-selected');
+
+      // Update the preview if needed
+      const preview = document.querySelector('.background-preview-area');
+      if (preview && state.selectedBackground && state.selectedBackground !== 'custom') {
+        const backgrounds = [
+          { id: 1, name: 'Beach Sunset', category: 'Nature', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop' },
+          { id: 3, name: 'Mountain Vista', category: 'Nature', img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop' },
+          { id: 4, name: 'Tropical Paradise', category: 'Nature', img: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=300&fit=crop' },
+          { id: 7, name: 'Desert Dunes', category: 'Nature', img: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=400&h=300&fit=crop' },
+          { id: 8, name: 'Forest Path', category: 'Nature', img: 'https://images.unsplash.com/photo-1511497584788-876760111969?w=400&h=300&fit=crop' },
+          { id: 9, name: 'Waterfall', category: 'Nature', img: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=400&h=300&fit=crop' },
+          { id: 2, name: 'City Skyline', category: 'Urban', img: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop' },
+          { id: 10, name: 'Brooklyn Bridge', category: 'Urban', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=300&fit=crop' },
+          { id: 11, name: 'Tokyo Neon', category: 'Urban', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=300&fit=crop' },
+          { id: 12, name: 'Paris Streets', category: 'Urban', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop' },
+          { id: 5, name: 'Northern Lights', category: 'Sky', img: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=400&h=300&fit=crop' },
+          { id: 6, name: 'Starry Night', category: 'Sky', img: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=400&h=300&fit=crop' },
+          { id: 13, name: 'Galaxy', category: 'Sky', img: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400&h=300&fit=crop' },
+          { id: 14, name: 'Sunset Clouds', category: 'Sky', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&h=300&fit=crop' },
+          { id: 15, name: 'Blue Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=400&h=300&fit=crop' },
+          { id: 16, name: 'Pink Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400&h=300&fit=crop' },
+          { id: 17, name: 'Bokeh Lights', category: 'Abstract', img: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=300&fit=crop' },
+        ];
+        const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
+        if (selectedBg) {
+          preview.innerHTML = `
+            <div style="position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
+              <img src="${selectedBg.img}" style="width: 100%; height: 100%; object-fit: cover;">
+              <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 12px;">
+                <div style="color: white; font-size: 18px; font-weight: bold;">${selectedBg.name}</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // Enable next button
+      const nextBtn = document.getElementById('nextBtn');
+      if (nextBtn) nextBtn.disabled = false;
     });
   });
 
