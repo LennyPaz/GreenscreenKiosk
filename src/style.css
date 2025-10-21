@@ -1633,6 +1633,54 @@ input, textarea {
 }
 
 /* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+  /* Hide everything except receipts */
+  body {
+    background: white;
+    overflow: visible;
+  }
+
+  .screen__header,
+  .btn,
+  button,
+  #countdown,
+  #printBtn {
+    display: none !important;
+  }
+
+  /* Make receipts print side-by-side on one page */
+  .screen__body {
+    display: block !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Receipt container */
+  .screen__body > div:first-child {
+    display: flex !important;
+    gap: 20px !important;
+    page-break-inside: avoid;
+  }
+
+  .card--glass {
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    border: 2px solid #333 !important;
+  }
+
+  /* Ensure images print */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+}
+
+/* ============================================
    KIOSK-SPECIFIC VIEWPORT CONSTRAINTS
    ============================================ */
 
