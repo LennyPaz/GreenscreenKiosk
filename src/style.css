@@ -914,9 +914,9 @@ input, button, textarea, select {
 .keyboard {
   background: var(--color-gray-800);
   border-radius: var(--radius-lg);
-  padding: 6px;
+  padding: 12px;
   display: grid;
-  gap: 4px;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
@@ -924,21 +924,21 @@ input, button, textarea, select {
 
 .keyboard__row {
   display: grid;
-  gap: 3px;
-  grid-template-columns: repeat(auto-fit, minmax(45px, 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
 }
 
 .keyboard__key {
   background: var(--color-gray-700);
   color: var(--color-white);
   border: none;
-  border-radius: var(--radius-sm);
-  padding: 6px;
-  font-size: 14px;
-  font-weight: var(--font-semibold);
+  border-radius: var(--radius-md);
+  padding: 16px 12px;
+  font-size: 20px;
+  font-weight: var(--font-bold);
   cursor: pointer;
   transition: all var(--transition-base);
-  min-height: 35px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -968,6 +968,16 @@ input, button, textarea, select {
 
 .keyboard__key--delete:hover {
   background: #d32f2f;
+}
+
+.keyboard__key--shortcut {
+  background: var(--color-info);
+  font-size: 14px;
+  font-weight: var(--font-bold);
+}
+
+.keyboard__key--shortcut:hover {
+  background: #0288d1;
 }
 
 /* Price Tracker */
