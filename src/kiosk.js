@@ -1589,9 +1589,9 @@ function createReceiptScreen() {
                   <div style="font-weight: bold; margin-top: 2px;">TOTAL: $${state.totalPrice.toFixed(2)}</div>
                 </div>
 
-                <div style="border: 2px solid #000; padding: 6px; margin: 6px 0; min-height: 35px; background: white;">
-                  <div style="font-size: 10px; font-weight: bold;">☐ PAID</div>
-                  <div style="font-size: 8px; color: #666;">Stamp required</div>
+                <div style="border: 2px solid #000; padding: 8px; margin: 6px auto; width: 60px; height: 60px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                  <div style="font-size: 12px; font-weight: bold;">☐ PAID</div>
+                  <div style="font-size: 7px; color: #666; margin-top: 2px;">Stamp</div>
                 </div>
 
                 ${state.printQuantity > 0 ? `
@@ -1600,9 +1600,9 @@ function createReceiptScreen() {
                     <div>Return at end of event</div>
                   </div>
 
-                  <div style="border: 2px solid #000; padding: 6px; margin: 6px 0; min-height: 35px; background: white;">
-                    <div style="font-size: 10px; font-weight: bold;">☐ RECEIVED</div>
-                    <div style="font-size: 8px; color: #666;">Stamp when picked up</div>
+                  <div style="border: 2px solid #000; padding: 8px; margin: 6px auto; width: 60px; height: 60px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div style="font-size: 11px; font-weight: bold;">☐ RCVD</div>
+                    <div style="font-size: 7px; color: #666; margin-top: 2px;">Stamp</div>
                   </div>
                 ` : ''}
 
@@ -1634,7 +1634,7 @@ function createReceiptScreen() {
             ${state.customerPhoto ? `
               <div style="margin-bottom: 6px; text-align: center;">
                 <div style="font-weight: bold; font-size: 8px; margin-bottom: 3px;">CUSTOMER ID:</div>
-                <img src="${state.customerPhoto}" alt="Customer ID" style="width: 100%; max-width: 180px; height: auto; border: 2px solid #000; margin: 0 auto; display: block;">
+                <img src="${state.customerPhoto}" alt="Customer ID" style="width: 100%; max-width: 100px; height: auto; border: 2px solid #000; margin: 0 auto; display: block;">
               </div>
             ` : ''}
 
@@ -1660,7 +1660,7 @@ function createReceiptScreen() {
             </div>
 
             <div style="font-weight: bold; margin-bottom: 5px; font-size: 9px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 3px;">VERIFICATION STAMPS</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
               ${[
                 { label: 'PHOTO', symbol: '☐' },
                 { label: 'PAID', symbol: '☐' },
@@ -1668,9 +1668,9 @@ function createReceiptScreen() {
                 { label: 'PRINT', symbol: '☐' },
                 { label: 'PICKUP', symbol: '☐' }
               ].map(stamp => `
-                <div style="border: 2px solid #000; padding: 6px; text-align: center; font-size: 9px; min-height: 38px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; ${stamp.label === 'PICKUP' ? 'grid-column: 1 / -1;' : ''}">
-                  <div style="font-size: 14px; margin-bottom: 2px;">${stamp.symbol}</div>
-                  <div style="font-weight: bold; font-size: 7px;">${stamp.label}</div>
+                <div style="border: 2px solid #000; padding: 8px; text-align: center; font-size: 9px; aspect-ratio: 1/1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; ${stamp.label === 'PICKUP' ? 'grid-column: 1 / -1;' : ''}">
+                  <div style="font-size: 16px; margin-bottom: 2px;">${stamp.symbol}</div>
+                  <div style="font-weight: bold; font-size: 8px;">${stamp.label}</div>
                 </div>
               `).join('')}
             </div>
