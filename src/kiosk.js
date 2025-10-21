@@ -9,23 +9,24 @@
 const state = {
   currentScreen: 'attract',        // Start with attract loop
   currentStep: 0,
-  totalSteps: 10,                  // Updated to 10 steps
+  totalSteps: 11,                  // FIXED: Actual workflow steps
+  screenHistory: [],               // NEW: Navigation history stack for back button
   customerName: '',
   partySize: 1,
   selectedBackground: null,
-  backgroundName: '',              // NEW: Name of selected background
-  backgroundCategory: 'Nature',    // NEW: Current background category tab
+  backgroundName: '',              // Name of selected background
+  backgroundCategory: 'Nature',    // Current background category tab
   deliveryMethod: null,            // 'print' | 'email' | 'both'
   printQuantity: 0,
-  emailQuantity: 0,
-  emailAddresses: [],
+  emailAddresses: [],              // SIMPLIFIED: Array of email strings (no quantity concept)
   paymentMethod: null,
   customerPhoto: null,             // Base64 webcam image
+  photoCaptured: false,            // NEW: Track if photo was captured (for confirmation)
   customerNumber: null,
-  totalPrice: 0,                   // NEW: Calculated total
-  reviewedOnce: false,             // NEW: Track if they saw review
+  totalPrice: 0,                   // Calculated total
+  reviewedOnce: false,             // Track if they saw review
   config: null,
-  idleTimer: null                  // NEW: For attract loop timeout
+  idleTimer: null                  // For attract loop timeout
 };
 
 // ============================================
@@ -173,12 +174,12 @@ function createKeyboard(inputId, includeEmailShortcuts = false) {
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.'],
     ['@GMAIL', '@YAHOO', '@HOTMAIL', '@OUTLOOK'],
-    ['SPACE', 'DELETE']
+    ['SPACE', 'DELETE', 'DONE']
   ] : [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.', 'COM'],
-    ['SPACE', 'DELETE']
+    ['SPACE', 'DELETE', 'DONE']
   ];
 
   let html = '<div class="keyboard">';
@@ -189,11 +190,13 @@ function createKeyboard(inputId, includeEmailShortcuts = false) {
       const classes = ['keyboard__key'];
       if (key === 'SPACE') classes.push('keyboard__key--space');
       if (key === 'DELETE') classes.push('keyboard__key--delete', 'keyboard__key--wide');
+      if (key === 'DONE') classes.push('keyboard__key--wide');
       if (key.startsWith('@')) classes.push('keyboard__key--shortcut');
 
       const displayText = {
         'SPACE': 'Space',
         'DELETE': '⌫ Delete',
+        'DONE': '✓ Done',
         '@GMAIL': '@gmail.com',
         '@YAHOO': '@yahoo.com',
         '@HOTMAIL': '@hotmail.com',
@@ -223,7 +226,14 @@ function attachKeyboardListeners() {
 
       if (!input) return;
 
-      if (key === 'DELETE') {
+      if (key === 'DONE') {
+        // Trigger the next button click (simulates Enter key)
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn && !nextBtn.disabled) {
+          nextBtn.click();
+        }
+        return;
+      } else if (key === 'DELETE') {
         input.value = input.value.slice(0, -1);
       } else if (key === 'SPACE') {
         input.value += ' ';
@@ -265,7 +275,10 @@ function attachKeyboardListeners() {
 // ============================================
 function calculateCurrentPrice() {
   const printPrice = state.printQuantity > 0 ? (state.config?.printPricing?.[state.printQuantity] || 0) : 0;
-  const emailPrice = state.emailQuantity > 0 ? (state.config?.emailPricing?.[state.emailQuantity] || 0) : 0;
+  // SIMPLIFIED: Email pricing is per recipient (base + $1 per additional)
+  const emailCount = state.emailAddresses.length;
+  const baseEmailPrice = state.config?.emailPricing?.[1] || 10;
+  const emailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
   return printPrice + emailPrice;
 }
 
@@ -398,11 +411,11 @@ function createBackgroundScreen() {
 
   return `
     <div class="screen">
-      <!-- COMPACT HEADER -->
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Choose Background</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <!-- IMPROVED HEADER: Larger touch targets (MO1) -->
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Choose Background</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
@@ -715,9 +728,10 @@ function createEmailScreen() {
   const maxEmails = 8;
   const canAddMore = state.emailAddresses.length < maxEmails;
 
-  // Calculate price per email: BASE $10 + $1 per additional email
+  // SIMPLIFIED: Email pricing is per recipient (base + $1 per additional)
   const baseEmailPrice = config?.emailPricing?.[1] || 10;
-  const totalEmailPrice = state.emailAddresses.length > 0 ? baseEmailPrice + (state.emailAddresses.length - 1) : 0;
+  const emailCount = state.emailAddresses.length;
+  const totalEmailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
 
   return `
     <div class="screen">
@@ -873,9 +887,11 @@ function createNameScreen() {
 // SCREEN 9: REVIEW & EDIT - REDESIGNED
 // ============================================
 function createReviewScreen() {
-  // Calculate total price
+  // Calculate total price (FIXED: use simplified email pricing)
   const printPrice = state.config?.printPricing?.[state.printQuantity] || 0;
-  const emailPrice = state.config?.emailPricing?.[state.emailQuantity] || 0;
+  const emailCount = state.emailAddresses.length;
+  const baseEmailPrice = state.config?.emailPricing?.[1] || 10;
+  const emailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
   const total = printPrice + emailPrice;
   state.totalPrice = total;
 
@@ -928,11 +944,11 @@ function createReviewScreen() {
               </div>
             ` : ''}
 
-            ${state.emailQuantity > 0 ? `
+            ${emailCount > 0 ? `
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
                 <div style="flex: 1;">
                   <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Emails</div>
-                  <div style="font-size: 14px; color: var(--color-gray-600);">${state.emailQuantity} ${state.emailQuantity === 1 ? 'address' : 'addresses'} • $${emailPrice.toFixed(2)}</div>
+                  <div style="font-size: 14px; color: var(--color-gray-600);">${emailCount} ${emailCount === 1 ? 'recipient' : 'recipients'} • $${emailPrice.toFixed(2)}</div>
                 </div>
                 <button class="btn btn--outline btn--small edit-btn" data-screen="email" style="font-size: 13px; padding: 6px 12px;">Edit</button>
               </div>
@@ -1055,7 +1071,7 @@ function createPhotoScreen() {
   return `
     <div class="screen">
       <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <div style="min-width: 80px;"></div>
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
         <div style="font-size: 15px; font-weight: 600;">Customer ID Photo</div>
         <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
       </header>
@@ -1081,6 +1097,47 @@ function createPhotoScreen() {
           <span style="font-size: 32px; margin-right: 12px;">📷</span>
           CAPTURE PHOTO
         </button>
+      </main>
+
+      ${createProgressBar(10, state.totalSteps)}
+    </div>
+  `;
+}
+
+// ============================================
+// SCREEN 11B: PHOTO CONFIRMATION - NEW (C5)
+// ============================================
+function createPhotoConfirmScreen() {
+  return `
+    <div class="screen">
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
+        <div style="min-width: 80px;"></div>
+        <div style="font-size: 15px; font-weight: 600;">Review Photo</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      </header>
+
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px); gap: 20px;">
+        <div style="text-align: center;">
+          <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 12px;">How does this look?</h1>
+          <p style="font-size: 16px; color: var(--color-gray-600);">This photo helps us match you to your final photo</p>
+        </div>
+
+        <!-- Photo Preview -->
+        <div style="position: relative; width: 100%; max-width: 600px; aspect-ratio: 4/3; background: var(--color-gray-900); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-2xl);">
+          <img src="${state.customerPhoto}" alt="Captured Photo" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 16px; width: 100%; max-width: 600px;">
+          <button class="btn btn--outline btn--large" id="retakeBtn" style="flex: 1; height: 70px; font-size: 18px; font-weight: bold;">
+            <span style="font-size: 24px; margin-right: 8px;">↻</span>
+            RETAKE PHOTO
+          </button>
+          <button class="btn btn--gradient-success btn--large" id="usePhotoBtn" style="flex: 1; height: 70px; font-size: 18px; font-weight: bold;">
+            <span style="font-size: 24px; margin-right: 8px;">✓</span>
+            USE THIS PHOTO
+          </button>
+        </div>
       </main>
 
       ${createProgressBar(10, state.totalSteps)}
@@ -1120,11 +1177,23 @@ async function startWebcam() {
   } catch (error) {
     console.error('Error accessing webcam:', error);
     if (placeholder) {
+      // IMPROVED: Show error with retry and skip options
       placeholder.innerHTML = `
-        <div class="icon-camera" style="color: var(--color-error); transform: scale(2); margin-bottom: 16px;"></div>
-        <div style="font-size: 16px; color: var(--color-error); text-align: center; padding: 0 20px;">
-          Camera access denied or unavailable.<br>
-          <small>Please allow camera access and refresh.</small>
+        <div class="icon-camera" style="color: white; transform: scale(2); margin-bottom: 16px; opacity: 0.6;"></div>
+        <div style="font-size: 18px; color: white; text-align: center; padding: 0 20px; margin-bottom: 24px; font-weight: 600;">
+          Camera Unavailable
+        </div>
+        <div style="font-size: 14px; color: rgba(255,255,255,0.9); text-align: center; padding: 0 20px; margin-bottom: 32px;">
+          ${error.name === 'NotAllowedError' ? 'Camera access was denied' : 'Could not access camera'}<br>
+          <small style="font-size: 12px; opacity: 0.8;">Please allow camera permissions or try again</small>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button id="retryCamera" class="btn btn--primary" style="padding: 12px 24px; font-size: 14px; min-height: 44px;">
+            ↻ Retry
+          </button>
+          <button id="skipCamera" class="btn btn--outline" style="padding: 12px 24px; font-size: 14px; background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4); min-height: 44px;">
+            Skip Photo
+          </button>
         </div>
       `;
     }
@@ -1385,6 +1454,9 @@ function render() {
     case 'photo':
       html = createPhotoScreen();
       break;
+    case 'photoConfirm':
+      html = createPhotoConfirmScreen();
+      break;
     case 'processing':
       html = createProcessingScreen();
       break;
@@ -1412,16 +1484,17 @@ function attachEventListeners() {
         // Reset all state
         state.currentScreen = 'attract';
         state.currentStep = 0;
+        state.screenHistory = [];
         state.customerName = '';
         state.partySize = 1;
         state.selectedBackground = null;
         state.backgroundName = '';
         state.deliveryMethod = null;
         state.printQuantity = 0;
-        state.emailQuantity = 0;
         state.emailAddresses = [];
         state.paymentMethod = null;
         state.customerPhoto = null;
+        state.photoCaptured = false;
         state.totalPrice = 0;
         state.reviewedOnce = false;
         render();
@@ -1489,7 +1562,6 @@ function attachEventListeners() {
 
       // Reset quantities when delivery method changes
       if (state.deliveryMethod === 'print') {
-        state.emailQuantity = 0;
         state.emailAddresses = [];
       } else if (state.deliveryMethod === 'email') {
         state.printQuantity = 0;
@@ -1550,7 +1622,6 @@ function attachEventListeners() {
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
       state.emailAddresses.push('');
-      state.emailQuantity = state.emailAddresses.length; // Update count
       render();
     });
   }
@@ -1561,7 +1632,6 @@ function attachEventListeners() {
     btn.addEventListener('click', () => {
       const index = parseInt(btn.dataset.index);
       state.emailAddresses.splice(index, 1);
-      state.emailQuantity = state.emailAddresses.length; // Update count
       render();
     });
   });
@@ -1572,7 +1642,9 @@ function attachEventListeners() {
   // ==================== NAME ENTRY ====================
   const nameInput = document.getElementById('nameInput');
   if (nameInput) {
-    nameInput.focus();
+    // AUTO-FOCUS: Focus input after render (M7)
+    setTimeout(() => nameInput.focus(), 100);
+
     nameInput.addEventListener('input', (e) => {
       state.customerName = e.target.value;
     });
@@ -1582,6 +1654,12 @@ function attachEventListeners() {
         nextBtn?.click();
       }
     });
+  }
+
+  // AUTO-FOCUS: Email inputs (M7)
+  const firstEmailInput = document.getElementById('email-0');
+  if (firstEmailInput) {
+    setTimeout(() => firstEmailInput.focus(), 100);
   }
 
   // ==================== BACK BUTTON ====================
@@ -1618,6 +1696,10 @@ function attachEventListeners() {
         state.currentScreen = 'name';
       } else if (state.currentScreen === 'payment') {
         state.currentScreen = 'review';
+      } else if (state.currentScreen === 'photo') {
+        // Stop webcam before going back
+        stopWebcam();
+        state.currentScreen = 'payment';
       }
       render();
     });
@@ -1671,22 +1753,66 @@ function attachEventListeners() {
 
       if (photoData) {
         state.customerPhoto = photoData;
+        state.photoCaptured = true;
 
         // Stop webcam
         stopWebcam();
 
-        // Advance to processing
-        state.currentScreen = 'processing';
+        // IMPROVED: Show confirmation screen instead of auto-advancing
+        state.currentScreen = 'photoConfirm';
         render();
-
-        // Auto-advance to receipt after 3 seconds
-        setTimeout(() => {
-          state.currentScreen = 'receipt';
-          render();
-        }, 3000);
       } else {
         alert('Failed to capture photo. Please try again.');
       }
+    });
+  }
+
+  // Camera retry button (error recovery)
+  const retryCamera = document.getElementById('retryCamera');
+  if (retryCamera) {
+    retryCamera.addEventListener('click', () => {
+      render(); // Re-render photo screen to retry camera
+    });
+  }
+
+  // Camera skip button (error recovery)
+  const skipCamera = document.getElementById('skipCamera');
+  if (skipCamera) {
+    skipCamera.addEventListener('click', () => {
+      state.customerPhoto = null;
+      stopWebcam();
+      state.currentScreen = 'processing';
+      render();
+      setTimeout(() => {
+        state.currentScreen = 'receipt';
+        render();
+      }, 3000);
+    });
+  }
+
+  // ==================== PHOTO CONFIRMATION SCREEN ====================
+  const retakeBtn = document.getElementById('retakeBtn');
+  if (retakeBtn) {
+    retakeBtn.addEventListener('click', () => {
+      state.customerPhoto = null;
+      state.photoCaptured = false;
+      state.currentScreen = 'photo';
+      render();
+    });
+  }
+
+  const usePhotoBtn = document.getElementById('usePhotoBtn');
+  if (usePhotoBtn) {
+    usePhotoBtn.addEventListener('click', () => {
+      // Advance to processing
+      state.currentScreen = 'processing';
+      render();
+
+      // Auto-advance to receipt after 3 seconds
+      setTimeout(() => {
+        state.currentScreen = 'receipt';
+        render();
+      }, 3000);
     });
   }
 
@@ -1710,16 +1836,17 @@ function attachEventListeners() {
         // Reset state and return to attract
         state.currentScreen = 'attract';
         state.currentStep = 0;
+        state.screenHistory = [];
         state.customerName = '';
         state.partySize = 1;
         state.selectedBackground = null;
         state.backgroundName = '';
         state.deliveryMethod = null;
         state.printQuantity = 0;
-        state.emailQuantity = 0;
         state.emailAddresses = [];
         state.paymentMethod = null;
         state.customerPhoto = null;
+        state.photoCaptured = false;
         state.customerNumber = null;
         state.totalPrice = 0;
         state.reviewedOnce = false;
