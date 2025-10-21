@@ -10,7 +10,7 @@ const state = {
   currentScreen: 'attract',        // Start with attract loop
   currentStep: 0,
   totalSteps: 11,                  // FIXED: Actual workflow steps
-  screenHistory: [],               // NEW: Navigation history stack for back button
+  screenHistory: [],               // M2: Navigation history stack for back button
   customerName: '',
   partySize: 1,
   selectedBackground: null,
@@ -26,7 +26,8 @@ const state = {
   totalPrice: 0,                   // Calculated total
   reviewedOnce: false,             // Track if they saw review
   config: null,
-  idleTimer: null                  // For attract loop timeout
+  idleTimer: null,                 // For attract loop timeout
+  isTransitioning: false           // M6: Prevent touches during screen transitions
 };
 
 // ============================================
@@ -90,6 +91,43 @@ async function loadConfig() {
       printPricing: { 1: 10, 2: 15, 3: 20, 4: 25, 5: 30, 6: 35, 7: 40, 8: 45 },
       emailPricing: { 1: 10, 2: 11, 3: 12, 4: 12.5, 5: 13 }
     };
+  }
+}
+
+// ============================================
+// NAVIGATION HELPERS (M2: History Stack)
+// ============================================
+/**
+ * Navigate to a new screen with history tracking
+ * @param {string} newScreen - Screen to navigate to
+ * @param {boolean} skipHistory - If true, don't add to history (for back navigation)
+ */
+function navigateTo(newScreen, skipHistory = false) {
+  // M6: Prevent navigation during transitions
+  if (state.isTransitioning) return;
+
+  // Don't track attract or receipt screens in history
+  if (!skipHistory && state.currentScreen !== 'attract' && state.currentScreen !== 'receipt') {
+    state.screenHistory.push(state.currentScreen);
+  }
+
+  state.currentScreen = newScreen;
+  render();
+}
+
+/**
+ * Navigate back using history stack
+ */
+function goBack() {
+  // M6: Prevent navigation during transitions
+  if (state.isTransitioning) return;
+
+  if (state.screenHistory.length > 0) {
+    const previousScreen = state.screenHistory.pop();
+    navigateTo(previousScreen, true); // skipHistory = true to avoid re-adding
+  } else {
+    // Fallback to attract if no history
+    navigateTo('attract', true);
   }
 }
 
@@ -1561,7 +1599,6 @@ function showStartOverModal() {
   document.getElementById('confirmStartOver')?.addEventListener('click', () => {
     closeStartOverModal();
     // Reset all state
-    state.currentScreen = 'attract';
     state.currentStep = 0;
     state.screenHistory = [];
     state.customerName = '';
@@ -1577,7 +1614,7 @@ function showStartOverModal() {
     state.totalPrice = 0;
     state.reviewedOnce = false;
     clearSavedState();
-    render();
+    navigateTo('attract', true); // skipHistory = true for attract screen
   });
 }
 
@@ -1645,7 +1682,8 @@ function render() {
       html = createAttractScreen();
   }
 
-  // SMOOTH TRANSITIONS: Fade out, change content, fade in
+  // M6: SMOOTH TRANSITIONS with touch prevention
+  state.isTransitioning = true;
   app.style.opacity = '0';
   app.style.transition = 'opacity 0.2s ease-out';
 
@@ -1656,6 +1694,10 @@ function render() {
     // Fade in
     setTimeout(() => {
       app.style.opacity = '1';
+      // Re-enable touches after transition completes
+      setTimeout(() => {
+        state.isTransitioning = false;
+      }, 200);
     }, 10);
 
     // AUTO-SAVE: Persist state after render (T1)
@@ -1679,8 +1721,7 @@ function attachEventListeners() {
   const attractScreen = document.getElementById('attractScreen');
   if (attractScreen) {
     attractScreen.addEventListener('click', () => {
-      state.currentScreen = 'welcome';
-      render();
+      navigateTo('welcome');
     });
   }
 
@@ -1688,8 +1729,7 @@ function attachEventListeners() {
   const startBtn = document.getElementById('startBtn');
   if (startBtn) {
     startBtn.addEventListener('click', () => {
-      state.currentScreen = 'background';
-      render();
+      navigateTo('background');
     });
   }
 
@@ -1869,46 +1909,15 @@ function attachEventListeners() {
     setTimeout(() => firstEmailInput.focus(), 100);
   }
 
-  // ==================== BACK BUTTON ====================
+  // ==================== BACK BUTTON (M2: Using History Stack) ====================
   const backBtn = document.getElementById('backBtn');
   if (backBtn) {
     backBtn.addEventListener('click', () => {
-      // Navigate backwards through the flow
-      if (state.currentScreen === 'background') {
-        state.currentScreen = 'welcome';
-      } else if (state.currentScreen === 'partySize') {
-        state.currentScreen = 'background';
-      } else if (state.currentScreen === 'delivery') {
-        state.currentScreen = 'partySize';
-      } else if (state.currentScreen === 'quantity') {
-        state.currentScreen = 'delivery';
-      } else if (state.currentScreen === 'email') {
-        // If email only, go back to delivery; otherwise go to quantity
-        if (state.deliveryMethod === 'email') {
-          state.currentScreen = 'delivery';
-        } else if (state.deliveryMethod === 'both' && state.printQuantity > 0) {
-          state.emailQuantity = 0; // Reset email quantity
-          state.currentScreen = 'quantity';
-        } else {
-          state.currentScreen = 'quantity';
-        }
-      } else if (state.currentScreen === 'name') {
-        // If email was selected, go back to email
-        if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
-          state.currentScreen = 'email';
-        } else {
-          state.currentScreen = 'quantity';
-        }
-      } else if (state.currentScreen === 'review') {
-        state.currentScreen = 'name';
-      } else if (state.currentScreen === 'payment') {
-        state.currentScreen = 'review';
-      } else if (state.currentScreen === 'photo') {
-        // Stop webcam before going back
+      // Stop webcam if on photo screen
+      if (state.currentScreen === 'photo') {
         stopWebcam();
-        state.currentScreen = 'payment';
       }
-      render();
+      goBack();
     });
   }
 
@@ -1917,8 +1926,7 @@ function attachEventListeners() {
   editBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetScreen = btn.dataset.screen;
-      state.currentScreen = targetScreen;
-      render();
+      navigateTo(targetScreen);
     });
   });
 
@@ -1926,8 +1934,7 @@ function attachEventListeners() {
   if (confirmBtn) {
     confirmBtn.addEventListener('click', () => {
       state.reviewedOnce = true;
-      state.currentScreen = 'payment';
-      render();
+      navigateTo('payment');
     });
   }
 
@@ -1966,8 +1973,7 @@ function attachEventListeners() {
         stopWebcam();
 
         // IMPROVED: Show confirmation screen instead of auto-advancing
-        state.currentScreen = 'photoConfirm';
-        render();
+        navigateTo('photoConfirm');
       } else {
         alert('Failed to capture photo. Please try again.');
       }
@@ -1988,11 +1994,9 @@ function attachEventListeners() {
     skipCamera.addEventListener('click', () => {
       state.customerPhoto = null;
       stopWebcam();
-      state.currentScreen = 'processing';
-      render();
+      navigateTo('processing');
       setTimeout(() => {
-        state.currentScreen = 'receipt';
-        render();
+        navigateTo('receipt');
       }, 3000);
     });
   }
@@ -2003,8 +2007,7 @@ function attachEventListeners() {
     retakeBtn.addEventListener('click', () => {
       state.customerPhoto = null;
       state.photoCaptured = false;
-      state.currentScreen = 'photo';
-      render();
+      navigateTo('photo');
     });
   }
 
@@ -2012,13 +2015,11 @@ function attachEventListeners() {
   if (usePhotoBtn) {
     usePhotoBtn.addEventListener('click', () => {
       // Advance to processing
-      state.currentScreen = 'processing';
-      render();
+      navigateTo('processing');
 
       // Auto-advance to receipt after 3 seconds
       setTimeout(() => {
-        state.currentScreen = 'receipt';
-        render();
+        navigateTo('receipt');
       }, 3000);
     });
   }
@@ -2041,7 +2042,6 @@ function attachEventListeners() {
       if (timeLeft <= 0) {
         clearInterval(countdownInterval);
         // Reset state and return to attract
-        state.currentScreen = 'attract';
         state.currentStep = 0;
         state.screenHistory = [];
         state.customerName = '';
@@ -2058,7 +2058,7 @@ function attachEventListeners() {
         state.totalPrice = 0;
         state.reviewedOnce = false;
         clearSavedState(); // Clear saved session on completion (T1)
-        render();
+        navigateTo('attract', true); // skipHistory = true for attract screen
       }
     }, 1000);
 
@@ -2086,33 +2086,32 @@ function attachEventListeners() {
     nextBtn.addEventListener('click', () => {
       // Navigate forward through the flow
       if (state.currentScreen === 'background') {
-        state.currentScreen = 'partySize';
+        navigateTo('partySize');
       } else if (state.currentScreen === 'partySize') {
-        state.currentScreen = 'delivery';
+        navigateTo('delivery');
       } else if (state.currentScreen === 'delivery') {
         // If email only, skip quantity and go straight to email
         if (state.deliveryMethod === 'email') {
-          state.currentScreen = 'email';
+          navigateTo('email');
         } else {
-          state.currentScreen = 'quantity';
+          navigateTo('quantity');
         }
       } else if (state.currentScreen === 'quantity') {
         // Go to email entry directly (no quantity selection)
         if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
-          state.currentScreen = 'email';
+          navigateTo('email');
         } else {
-          state.currentScreen = 'name';
+          navigateTo('name');
         }
       } else if (state.currentScreen === 'email') {
-        state.currentScreen = 'name';
+        navigateTo('name');
       } else if (state.currentScreen === 'name') {
         const nameInput = document.getElementById('nameInput');
         state.customerName = nameInput?.value || 'Guest';
-        state.currentScreen = 'review';
+        navigateTo('review');
       } else if (state.currentScreen === 'payment') {
-        state.currentScreen = 'photo';
+        navigateTo('photo');
       }
-      render();
     });
   }
 }

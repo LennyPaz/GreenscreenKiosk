@@ -498,8 +498,9 @@ input, button, textarea, select {
   box-shadow: var(--shadow-lg);
 }
 
+/* M6: Enhanced touch feedback */
 .btn:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
   box-shadow: var(--shadow-sm);
 }
 
@@ -690,6 +691,12 @@ input, button, textarea, select {
 .card--interactive {
   cursor: pointer;
   user-select: none;
+}
+
+/* M6: Enhanced touch feedback for interactive cards */
+.card--interactive:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--shadow-sm);
 }
 
 .card--selected {
