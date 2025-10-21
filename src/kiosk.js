@@ -512,10 +512,10 @@ function createDeliveryScreen() {
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
         <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 24px;">How would you like your photos?</h1>
 
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: 100%; max-width: 1100px; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 1200px; margin-bottom: 20px;">
           <!-- PRINT OPTION -->
           <button class="delivery-btn" data-method="print"
-                  style="height: 280px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'print' ? 'var(--color-success)' : 'var(--color-border)'};
+                  style="height: 360px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'print' ? 'var(--color-success)' : 'var(--color-border)'};
                   background: ${state.deliveryMethod === 'print' ? 'var(--gradient-primary)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                   box-shadow: ${state.deliveryMethod === 'print' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
@@ -533,7 +533,7 @@ function createDeliveryScreen() {
 
           <!-- EMAIL OPTION -->
           <button class="delivery-btn" data-method="email"
-                  style="height: 280px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'email' ? 'var(--color-success)' : 'var(--color-border)'};
+                  style="height: 360px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'email' ? 'var(--color-success)' : 'var(--color-border)'};
                   background: ${state.deliveryMethod === 'email' ? 'var(--gradient-ocean)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                   box-shadow: ${state.deliveryMethod === 'email' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
@@ -551,23 +551,23 @@ function createDeliveryScreen() {
 
           <!-- BOTH OPTION (BEST VALUE) -->
           <button class="delivery-btn" data-method="both"
-                  style="height: 280px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'both' ? 'var(--color-success)' : 'var(--color-secondary)'};
-                  background: var(--gradient-purple); padding: 24px; cursor: pointer; transition: all 0.2s; position: relative;
-                  box-shadow: ${state.deliveryMethod === 'both' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-2xl)' : 'var(--shadow-xl)'};
+                  style="height: 360px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'both' ? 'var(--color-success)' : 'var(--color-border)'};
+                  background: ${state.deliveryMethod === 'both' ? 'var(--gradient-purple)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s; position: relative;
+                  box-shadow: ${state.deliveryMethod === 'both' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-2xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
             ${state.deliveryMethod !== 'both' ? '<div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: var(--shadow-lg);">⭐ BEST VALUE</div>' : ''}
             <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
-              <div class="icon-printer" style="color: white; transform: scale(1.3);"></div>
-              <div style="font-size: 24px; font-weight: bold; color: white;">+</div>
-              <div class="icon-envelope" style="color: white; transform: scale(1.3);"></div>
+              <div class="icon-printer" style="color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-primary)'}; transform: scale(1.3);"></div>
+              <div style="font-size: 24px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-700)'};">+</div>
+              <div class="icon-envelope" style="color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-info)'}; transform: scale(1.3);"></div>
             </div>
-            <div style="font-size: 26px; font-weight: bold; margin-bottom: 12px; color: white;">BOTH</div>
-            <div style="font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.95); margin-bottom: 16px;">
+            <div style="font-size: 26px; font-weight: bold; margin-bottom: 12px; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-900)'};">BOTH</div>
+            <div style="font-size: 14px; line-height: 1.5; color: ${state.deliveryMethod === 'both' ? 'rgba(255,255,255,0.95)' : 'var(--color-gray-600)'}; margin-bottom: 16px;">
               • Everything included<br>
               • Physical + Digital<br>
               • Best deal!
             </div>
-            <div style="font-size: 22px; font-weight: bold; color: white;">
+            <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-success)'};">
               Great Value!
             </div>
           </button>
@@ -639,7 +639,17 @@ function createQuantityScreen() {
     `;
   }
 
-  // No email quantity screen - go straight to email entry
+  // For email-only delivery, skip quantity screen and go to email entry
+  // This shouldn't render but if it does, show a simple transition screen
+  return `
+    <div class="screen">
+      <main class="screen__body">
+        <div class="text-center">
+          <h1 class="text-3xl font-bold">Redirecting to email entry...</h1>
+        </div>
+      </main>
+    </div>
+  `;
 }
 
 // ============================================
@@ -1141,6 +1151,11 @@ function createProcessingScreen() {
 // SCREEN 13: RECEIPT DISPLAY
 // ============================================
 function createReceiptScreen() {
+  // Ensure customer number is generated (defensive programming)
+  if (!state.customerNumber) {
+    state.customerNumber = generateCustomerNumber();
+  }
+
   const now = new Date();
   const date = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
   const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -1327,15 +1342,9 @@ function render() {
       html = createAttractScreen();
   }
 
-  app.style.transition = 'opacity 0.3s ease-in-out';
-  app.style.opacity = '0';
-  setTimeout(() => {
-    app.innerHTML = html;
-    attachEventListeners();
-    setTimeout(() => {
-      app.style.opacity = '1';
-    }, 50);
-  }, 300);
+  // NO FLASHBANG - instant render
+  app.innerHTML = html;
+  attachEventListeners();
 }
 
 // ============================================
@@ -1413,13 +1422,8 @@ function attachEventListeners() {
       // Update state
       state.partySize = parseInt(btn.dataset.size);
 
-      // Update UI without re-rendering
-      partySizeBtns.forEach(b => {
-        b.classList.remove('btn--gradient-success');
-        b.classList.add('btn--outline');
-      });
-      btn.classList.remove('btn--outline');
-      btn.classList.add('btn--gradient-success');
+      // Re-render to update button highlighting (no flashbang since we removed it)
+      render();
     });
   });
 
@@ -1541,8 +1545,10 @@ function attachEventListeners() {
       } else if (state.currentScreen === 'quantity') {
         state.currentScreen = 'delivery';
       } else if (state.currentScreen === 'email') {
-        // If we came from quantity (both selected), go back to quantity
-        if (state.deliveryMethod === 'both' && state.printQuantity > 0) {
+        // If email only, go back to delivery; otherwise go to quantity
+        if (state.deliveryMethod === 'email') {
+          state.currentScreen = 'delivery';
+        } else if (state.deliveryMethod === 'both' && state.printQuantity > 0) {
           state.emailQuantity = 0; // Reset email quantity
           state.currentScreen = 'quantity';
         } else {
@@ -1679,7 +1685,12 @@ function attachEventListeners() {
       } else if (state.currentScreen === 'partySize') {
         state.currentScreen = 'delivery';
       } else if (state.currentScreen === 'delivery') {
-        state.currentScreen = 'quantity';
+        // If email only, skip quantity and go straight to email
+        if (state.deliveryMethod === 'email') {
+          state.currentScreen = 'email';
+        } else {
+          state.currentScreen = 'quantity';
+        }
       } else if (state.currentScreen === 'quantity') {
         // Go to email entry directly (no quantity selection)
         if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
