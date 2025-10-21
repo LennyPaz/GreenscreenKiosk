@@ -26,8 +26,7 @@ const state = {
   totalPrice: 0,                   // Calculated total
   reviewedOnce: false,             // Track if they saw review
   config: null,
-  idleTimer: null,                 // For attract loop timeout
-  isTransitioning: false           // M6: Prevent touches during screen transitions
+  idleTimer: null                  // For attract loop timeout
 };
 
 // ============================================
@@ -175,9 +174,6 @@ function createPricePreviewBadge() {
  * @param {boolean} skipHistory - If true, don't add to history (for back navigation)
  */
 function navigateTo(newScreen, skipHistory = false) {
-  // M6: Prevent navigation during transitions
-  if (state.isTransitioning) return;
-
   // Don't track attract or receipt screens in history
   if (!skipHistory && state.currentScreen !== 'attract' && state.currentScreen !== 'receipt') {
     state.screenHistory.push(state.currentScreen);
@@ -191,9 +187,6 @@ function navigateTo(newScreen, skipHistory = false) {
  * Navigate back using history stack
  */
 function goBack() {
-  // M6: Prevent navigation during transitions
-  if (state.isTransitioning) return;
-
   if (state.screenHistory.length > 0) {
     const previousScreen = state.screenHistory.pop();
     navigateTo(previousScreen, true); // skipHistory = true to avoid re-adding
@@ -873,8 +866,8 @@ function createQuantityScreen() {
   const isPrintSelected = state.deliveryMethod === 'print' || state.deliveryMethod === 'both';
   const isEmailSelected = state.deliveryMethod === 'email' || state.deliveryMethod === 'both';
 
-  // Show prints quantity (but only if we haven't selected print quantity yet, OR if we haven't selected email but need to)
-  if (isPrintSelected && state.printQuantity === 0) {
+  // Show prints quantity selection (allow re-selection even if already chosen)
+  if (isPrintSelected) {
     return `
       <div class="screen">
         <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
@@ -925,24 +918,15 @@ function createQuantityScreen() {
     `;
   }
 
-  // For email-only delivery OR if print quantity already selected when coming back
-  // Skip quantity screen and auto-navigate to appropriate screen
-  // This triggers when navigating back from later screens
-  if (isEmailSelected) {
-    // Auto-navigate to email screen
-    setTimeout(() => navigateTo('email', true), 0);
-  } else {
-    // Auto-navigate to name screen (print-only, already selected quantity)
-    setTimeout(() => navigateTo('name', true), 0);
-  }
-
-  // Show brief transition message while navigating
+  // Email-only delivery - skip to email screen (this shouldn't normally be rendered)
+  // The forward navigation skips this screen, but it might be in history
+  navigateTo('email');
   return `
     <div class="screen">
-      <main class="screen__body">
-        <div class="text-center">
-          <div style="font-size: 48px; margin-bottom: 20px;">⏳</div>
-          <h1 class="text-3xl font-bold">Loading...</h1>
+      <main class="screen__body" style="display: flex; align-items: center; justify-content: center; min-height: 60vh;">
+        <div style="text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 20px;">📧</div>
+          <h1 style="font-size: 28px; font-weight: bold;">Going to email entry...</h1>
         </div>
       </main>
     </div>
@@ -1581,7 +1565,7 @@ function createReceiptScreen() {
           <div class="card card--glass" style="padding: 16px; background: white; color: black;">
             <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px;">
               <div style="font-size: 18px; font-weight: bold;">CUSTOMER RECEIPT</div>
-              <div style="font-size: 24px; font-weight: bold; margin: 8px 0;">#{state.customerNumber}</div>
+              <div style="font-size: 24px; font-weight: bold; margin: 8px 0;">#${state.customerNumber}</div>
               <div style="font-size: 11px;">KEEP THIS RECEIPT</div>
             </div>
 
@@ -1778,7 +1762,7 @@ function closeStartOverModal() {
 // ============================================
 // RENDER FUNCTION
 // ============================================
-function render(noAnimation = false) {
+function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
@@ -1831,45 +1815,17 @@ function render(noAnimation = false) {
       html = createAttractScreen();
   }
 
-  // M6: SMOOTH TRANSITIONS with touch prevention (skip if noAnimation)
-  if (noAnimation) {
-    app.innerHTML = html;
-    attachEventListeners();
+  // NO ANIMATION - instant screen updates (user requested removal of white flash)
+  app.innerHTML = html;
+  attachEventListeners();
 
-    // Batch 7: Trigger confetti on receipt screen
-    if (state.currentScreen === 'receipt') {
-      setTimeout(() => createConfetti(), 500);
-    }
-
-    // AUTO-SAVE: Persist state after render (T1)
-    saveState();
-  } else {
-    state.isTransitioning = true;
-    app.style.opacity = '0';
-    app.style.transition = 'opacity 0.2s ease-out';
-
-    setTimeout(() => {
-      app.innerHTML = html;
-      attachEventListeners();
-
-      // Batch 7: Trigger confetti on receipt screen
-      if (state.currentScreen === 'receipt') {
-        setTimeout(() => createConfetti(), 500); // Delay for better effect
-      }
-
-      // Fade in
-      setTimeout(() => {
-        app.style.opacity = '1';
-        // Re-enable touches after transition completes
-        setTimeout(() => {
-          state.isTransitioning = false;
-        }, 200);
-      }, 10);
-
-      // AUTO-SAVE: Persist state after render (T1)
-      saveState();
-    }, 200);
+  // Batch 7: Trigger confetti on receipt screen
+  if (state.currentScreen === 'receipt') {
+    setTimeout(() => createConfetti(), 500);
   }
+
+  // AUTO-SAVE: Persist state after render (T1)
+  saveState();
 }
 
 // ============================================
@@ -2010,7 +1966,7 @@ function attachEventListeners() {
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
       state.emailAddresses.push({ id: generateEmailId(), value: '' });
-      render(true); // noAnimation = true to prevent white flash
+      render();
     });
   }
 
@@ -2051,7 +2007,7 @@ function attachEventListeners() {
     btn.addEventListener('click', () => {
       const emailId = btn.dataset.emailId;
       state.emailAddresses = state.emailAddresses.filter(email => email.id !== emailId);
-      render(true); // noAnimation = true to prevent white flash
+      render();
     });
   });
 
