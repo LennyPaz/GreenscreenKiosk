@@ -728,10 +728,10 @@ function createEmailScreen() {
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
-        <!-- LEFT: Keyboard & Inputs (FIXED LAYOUT) -->
-        <div style="display: grid; grid-template-rows: minmax(200px, 30%) 1fr; gap: 12px;">
-          <!-- Email Inputs (FIXED HEIGHT - scrollable) -->
-          <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px;">
+        <!-- LEFT: Keyboard & Inputs (KEYBOARD AT BOTTOM) -->
+        <div style="display: grid; grid-template-rows: 1fr auto; gap: 12px; min-height: 0;">
+          <!-- Email Inputs (TAKES AVAILABLE SPACE - scrollable) -->
+          <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px; min-height: 200px;">
             ${state.emailAddresses.map((email, i) => `
               <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
@@ -830,13 +830,16 @@ function createNameScreen() {
         <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
-        <div style="width: 100%; max-width: 700px; text-align: center;">
-          <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 12px;">What's your name?</h1>
-          <p style="font-size: 16px; color: var(--color-gray-600); margin-bottom: 24px;">This will appear on your receipt</p>
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; max-height: calc(100vh - 36px - 40px); overflow: hidden;">
+        <div style="width: 100%; max-width: 900px; display: flex; flex-direction: column; height: 100%; gap: 16px;">
+          <!-- Header Section -->
+          <div style="text-align: center;">
+            <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 8px;">What's your name?</h1>
+            <p style="font-size: 16px; color: var(--color-gray-600);">This will appear on your receipt</p>
+          </div>
 
           <!-- Name Input -->
-          <div style="margin-bottom: 20px;">
+          <div>
             <input
               type="text"
               id="nameInput"
@@ -847,15 +850,17 @@ function createNameScreen() {
             >
           </div>
 
-          <!-- Keyboard -->
-          <div style="margin-bottom: 20px;">
+          <!-- Keyboard (TAKES AVAILABLE SPACE) -->
+          <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
             ${createKeyboard('nameInput')}
           </div>
 
           <!-- Continue Button -->
-          <button class="btn btn--gradient-primary btn--large" id="nextBtn" style="width: 100%; height: 68px; font-size: 20px; font-weight: bold; box-shadow: var(--shadow-lg);">
-            CONTINUE →
-          </button>
+          <div>
+            <button class="btn btn--gradient-primary btn--large" id="nextBtn" style="width: 100%; height: 68px; font-size: 20px; font-weight: bold; box-shadow: var(--shadow-lg);">
+              CONTINUE →
+            </button>
+          </div>
         </div>
       </main>
 
