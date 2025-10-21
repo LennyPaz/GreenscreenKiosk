@@ -254,13 +254,11 @@ function createAttractScreen() {
             </p>
           </div>
 
-          <!-- Call to Action -->
-          <div style="margin-bottom: 50px; animation: pulse 2s ease-in-out infinite;">
-            <div style="background: rgba(255,255,255,0.25); backdrop-filter: blur(10px); padding: 30px 60px; border-radius: 20px; display: inline-block; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
-              <p style="font-size: 48px; font-weight: bold; color: white; margin: 0;">
-                👆 TAP ANYWHERE TO START
-              </p>
-            </div>
+          <!-- Call to Action - Simple Text, Not Button-Like -->
+          <div style="margin-bottom: 50px;">
+            <p style="font-size: 42px; font-weight: 600; color: rgba(255,255,255,0.9); margin: 0; letter-spacing: 2px; animation: pulse 2s ease-in-out infinite;">
+              👆 TAP ANYWHERE TO START
+            </p>
           </div>
 
           <!-- Pricing Info -->
@@ -308,22 +306,40 @@ function createWelcomeScreen() {
             </p>
           </div>
 
-          <!-- Features Grid -->
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 50px;">
-            <div style="background: white; padding: 24px; border-radius: 16px; box-shadow: var(--shadow-lg);">
-              <div style="font-size: 40px; margin-bottom: 12px;">⚡</div>
-              <div style="font-size: 22px; font-weight: bold; margin-bottom: 6px; color: var(--color-gray-900);">Quick</div>
-              <div style="font-size: 15px; color: var(--color-gray-600);">5 minutes</div>
+          <!-- How It Works - Informational Steps (Not Buttons) -->
+          <div style="background: rgba(255,255,255,0.6); backdrop-filter: blur(10px); padding: 32px; border-radius: 20px; margin-bottom: 50px; box-shadow: var(--shadow-md);">
+            <div style="font-size: 20px; font-weight: 700; color: var(--color-gray-700); margin-bottom: 24px; letter-spacing: 1px;">
+              HOW IT WORKS
             </div>
-            <div style="background: white; padding: 24px; border-radius: 16px; box-shadow: var(--shadow-lg);">
-              <div style="font-size: 40px; margin-bottom: 12px;">👆</div>
-              <div style="font-size: 22px; font-weight: bold; margin-bottom: 6px; color: var(--color-gray-900);">Easy</div>
-              <div style="font-size: 15px; color: var(--color-gray-600);">Touch only</div>
-            </div>
-            <div style="background: white; padding: 24px; border-radius: 16px; box-shadow: var(--shadow-lg);">
-              <div style="font-size: 40px; margin-bottom: 12px;">✨</div>
-              <div style="font-size: 22px; font-weight: bold; margin-bottom: 6px; color: var(--color-gray-900);">Pro</div>
-              <div style="font-size: 15px; color: var(--color-gray-600);">High quality</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; text-align: left;">
+              <div style="display: flex; gap: 12px; align-items: start;">
+                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">1</div>
+                <div>
+                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Choose Background</div>
+                  <div style="font-size: 13px; color: var(--color-gray-600);">Pick your scene</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: start;">
+                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">2</div>
+                <div>
+                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Select Options</div>
+                  <div style="font-size: 13px; color: var(--color-gray-600);">Prints or email</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: start;">
+                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">3</div>
+                <div>
+                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Take Photo</div>
+                  <div style="font-size: 13px; color: var(--color-gray-600);">With photographer</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: start;">
+                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">4</div>
+                <div>
+                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Get Photos</div>
+                  <div style="font-size: 13px; color: var(--color-gray-600);">Pick up or inbox</div>
+                </div>
+              </div>
             </div>
           </div>
 
