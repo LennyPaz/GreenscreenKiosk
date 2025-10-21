@@ -93,6 +93,67 @@ async function loadConfig() {
 }
 
 // ============================================
+// TEMPLATE UTILITIES
+// ============================================
+/**
+ * Clone a template and return the DOM fragment
+ * @param {string} templateId - ID of the template element
+ * @returns {DocumentFragment} Cloned template content
+ */
+function cloneTemplate(templateId) {
+  const template = document.getElementById(templateId);
+  if (!template) {
+    console.error(`Template not found: ${templateId}`);
+    return document.createDocumentFragment();
+  }
+  return template.content.cloneNode(true);
+}
+
+/**
+ * Set text content for elements with data-bind attribute
+ * @param {DocumentFragment|Element} fragment - DOM fragment or element
+ * @param {Object} bindings - Object with key-value pairs to bind
+ */
+function bindData(fragment, bindings) {
+  Object.entries(bindings).forEach(([key, value]) => {
+    const element = fragment.querySelector(`[data-bind="${key}"]`);
+    if (element) {
+      element.textContent = value;
+    }
+  });
+}
+
+/**
+ * Insert dynamic content into placeholder
+ * @param {DocumentFragment|Element} fragment - DOM fragment or element
+ * @param {string} placeholderName - Name of the data-dynamic attribute
+ * @param {string|Element} content - HTML string or DOM element to insert
+ */
+function insertDynamic(fragment, placeholderName, content) {
+  const placeholder = fragment.querySelector(`[data-dynamic="${placeholderName}"]`);
+  if (placeholder) {
+    if (typeof content === 'string') {
+      placeholder.innerHTML = content;
+    } else {
+      placeholder.appendChild(content);
+    }
+  }
+}
+
+/**
+ * Insert a component template into a placeholder
+ * @param {DocumentFragment|Element} fragment - DOM fragment or element
+ * @param {string} componentName - Name of the data-component attribute
+ * @param {DocumentFragment|Element} component - Component to insert
+ */
+function insertComponent(fragment, componentName, component) {
+  const placeholder = fragment.querySelector(`[data-component="${componentName}"]`);
+  if (placeholder) {
+    placeholder.appendChild(component);
+  }
+}
+
+// ============================================
 // CUSTOMER NUMBER GENERATOR
 // ============================================
 function generateCustomerNumber() {
@@ -235,126 +296,71 @@ function createProgressBar(currentStep, totalSteps) {
 }
 
 // ============================================
-// SCREEN 1: ATTRACT LOOP - REDESIGNED
+// SCREEN 1: ATTRACT LOOP - USES TEMPLATE
 // ============================================
 function createAttractScreen() {
   const config = state.config;
 
-  return `
-    <div class="screen" id="attractScreen" style="cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-      <main style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px;">
-        <div style="text-align: center; max-width: 1200px; width: 100%;">
-          <!-- Main Title -->
-          <div style="margin-bottom: 40px; animation: float 3s ease-in-out infinite;">
-            <h1 style="font-size: 72px; font-weight: 900; color: white; margin-bottom: 16px; text-shadow: 0 4px 20px rgba(0,0,0,0.3); letter-spacing: -1px;">
-              ${config?.theme || 'Green Screen Photos'}
-            </h1>
-            <p style="font-size: 32px; color: rgba(255,255,255,0.95); font-weight: 600;">
-              ${config?.eventName || 'Professional Photo Experience'}
-            </p>
-          </div>
+  // Clone template
+  const fragment = cloneTemplate('attract-screen-template');
 
-          <!-- Call to Action - Simple Text, Not Button-Like -->
-          <div style="margin-bottom: 50px;">
-            <p style="font-size: 42px; font-weight: 600; color: rgba(255,255,255,0.9); margin: 0; letter-spacing: 2px; animation: pulse 2s ease-in-out infinite;">
-              👆 TAP ANYWHERE TO START
-            </p>
-          </div>
+  // Bind data
+  bindData(fragment, {
+    theme: config?.theme || 'Green Screen Photos',
+    eventName: config?.eventName || 'Professional Photo Experience'
+  });
 
-          <!-- Pricing Info -->
-          ${config?.features?.freeMode
-            ? `<div style="background: var(--gradient-success); padding: 24px 48px; border-radius: 16px; display: inline-block; box-shadow: var(--shadow-2xl);">
-                <p style="font-size: 42px; font-weight: bold; color: white; margin: 0;">🎉 FREE TODAY! 🎉</p>
-              </div>`
-            : `<div style="background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 32px; border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
-                <div style="font-size: 24px; font-weight: 600; color: white; margin-bottom: 20px;">PRICING</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 700px; margin: 0 auto;">
-                  <div>
-                    <div style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">Prints Start At</div>
-                    <div style="font-size: 52px; font-weight: bold; color: white;">$${config?.basePrice?.toFixed(2) || '10.00'}</div>
-                  </div>
-                  <div>
-                    <div style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">Email Delivery</div>
-                    <div style="font-size: 52px; font-weight: bold; color: white;">$${config?.emailPricing?.[1]?.toFixed(2) || '10.00'}</div>
-                  </div>
-                </div>
-              </div>`
-          }
+  // Insert dynamic pricing
+  const pricingHTML = config?.features?.freeMode
+    ? `<div style="background: var(--gradient-success); padding: 24px 48px; border-radius: 16px; display: inline-block; box-shadow: var(--shadow-2xl);">
+        <p style="font-size: 42px; font-weight: bold; color: white; margin: 0;">🎉 FREE TODAY! 🎉</p>
+      </div>`
+    : `<div style="background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 32px; border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+        <div style="font-size: 24px; font-weight: 600; color: white; margin-bottom: 20px;">PRICING</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 700px; margin: 0 auto;">
+          <div>
+            <div style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">Prints Start At</div>
+            <div style="font-size: 52px; font-weight: bold; color: white;">$${config?.basePrice?.toFixed(2) || '10.00'}</div>
+          </div>
+          <div>
+            <div style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">Email Delivery</div>
+            <div style="font-size: 52px; font-weight: bold; color: white;">$${config?.emailPricing?.[1]?.toFixed(2) || '10.00'}</div>
+          </div>
         </div>
-      </main>
-    </div>
-  `;
+      </div>`;
+
+  insertDynamic(fragment, 'pricing', pricingHTML);
+
+  // Convert fragment to HTML string for consistency with current render system
+  const div = document.createElement('div');
+  div.appendChild(fragment);
+  return div.innerHTML;
 }
 
 // ============================================
-// SCREEN 2: WELCOME - REDESIGNED
+// SCREEN 2: WELCOME - USES TEMPLATE
 // ============================================
 function createWelcomeScreen() {
   const config = state.config;
 
-  return `
-    <div class="screen" style="background: var(--gradient-bg-light);">
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px;">
-        <div style="text-align: center; max-width: 900px; width: 100%;">
-          <!-- Header -->
-          <div style="margin-bottom: 40px;">
-            <h1 style="font-size: 56px; font-weight: 900; margin-bottom: 12px; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-              ${config?.theme || 'Green Screen Photos'}
-            </h1>
-            <p style="font-size: 24px; color: var(--color-gray-600); font-weight: 500;">
-              ${config?.eventName || 'Professional Photo Experience'}
-            </p>
-          </div>
+  // Clone template
+  const fragment = cloneTemplate('welcome-screen-template');
 
-          <!-- How It Works - Informational Steps (Not Buttons) -->
-          <div style="background: rgba(255,255,255,0.6); backdrop-filter: blur(10px); padding: 32px; border-radius: 20px; margin-bottom: 50px; box-shadow: var(--shadow-md);">
-            <div style="font-size: 20px; font-weight: 700; color: var(--color-gray-700); margin-bottom: 24px; letter-spacing: 1px;">
-              HOW IT WORKS
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; text-align: left;">
-              <div style="display: flex; gap: 12px; align-items: start;">
-                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">1</div>
-                <div>
-                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Choose Background</div>
-                  <div style="font-size: 13px; color: var(--color-gray-600);">Pick your scene</div>
-                </div>
-              </div>
-              <div style="display: flex; gap: 12px; align-items: start;">
-                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">2</div>
-                <div>
-                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Select Options</div>
-                  <div style="font-size: 13px; color: var(--color-gray-600);">Prints or email</div>
-                </div>
-              </div>
-              <div style="display: flex; gap: 12px; align-items: start;">
-                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">3</div>
-                <div>
-                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Take Photo</div>
-                  <div style="font-size: 13px; color: var(--color-gray-600);">With photographer</div>
-                </div>
-              </div>
-              <div style="display: flex; gap: 12px; align-items: start;">
-                <div style="font-size: 28px; font-weight: 900; color: var(--color-primary); min-width: 36px;">4</div>
-                <div>
-                  <div style="font-size: 16px; font-weight: 600; color: var(--color-gray-800); margin-bottom: 2px;">Get Photos</div>
-                  <div style="font-size: 13px; color: var(--color-gray-600);">Pick up or inbox</div>
-                </div>
-              </div>
-            </div>
-          </div>
+  // Bind data
+  bindData(fragment, {
+    theme: config?.theme || 'Green Screen Photos',
+    eventName: config?.eventName || 'Professional Photo Experience'
+  });
 
-          <!-- Start Button -->
-          <button class="btn btn--gradient-primary" id="startBtn" style="width: 100%; max-width: 600px; height: 100px; font-size: 28px; font-weight: bold; box-shadow: var(--shadow-2xl); border-radius: 16px;">
-            START SESSION →
-          </button>
-        </div>
-      </main>
-    </div>
-  `;
+  // Convert fragment to HTML string
+  const div = document.createElement('div');
+  div.appendChild(fragment);
+  return div.innerHTML;
 }
 
 // ============================================
-// SCREEN 3: BACKGROUND SELECTION - REDESIGNED WITH TABS
+// SCREEN 3: BACKGROUND SELECTION - STILL USES STRING TEMPLATES
+// (Complex dynamic content - can be refactored incrementally)
 // ============================================
 function createBackgroundScreen() {
   // Expanded background library with categories
@@ -414,20 +420,23 @@ function createBackgroundScreen() {
         </div>
 
         <!-- MAIN CONTENT AREA - LARGER PREVIEW -->
-        <div style="flex: 1; display: grid; grid-template-columns: 1fr 500px; gap: 12px; padding: 12px; overflow: hidden;">
-          <!-- LEFT: Background Grid (3 columns, smaller) -->
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; overflow-y: auto; align-content: start;">
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 550px; gap: 12px; padding: 12px; overflow: hidden;">
+          <!-- LEFT: Background Grid (4 columns with proper sizing) -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; overflow-y: auto; align-content: start; padding-right: 8px;">
             ${filteredBackgrounds.map(bg => `
               <button class="background-btn ${state.selectedBackground === bg.id ? 'bg-selected' : ''}"
                       data-id="${bg.id}" data-name="${bg.name}"
-                      style="position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid transparent'};
-                      background: url('${bg.img}') center/cover; transition: all 0.2s; box-shadow: ${state.selectedBackground === bg.id ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-sm)'};">
+                      style="position: relative; border-radius: 10px; overflow: hidden; cursor: pointer;
+                      aspect-ratio: 4/3; min-height: 140px;
+                      border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid var(--color-border)'};
+                      background: url('${bg.img}') center/cover; transition: all 0.2s;
+                      box-shadow: ${state.selectedBackground === bg.id ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
                 <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5));">
-                  <div style="position: absolute; bottom: 6px; left: 6px; right: 6px;">
-                    <div style="color: white; font-size: 12px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
+                  <div style="position: absolute; bottom: 8px; left: 8px; right: 8px;">
+                    <div style="color: white; font-size: 14px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
                   </div>
                 </div>
-                ${state.selectedBackground === bg.id ? '<div style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: bold;">✓</div>' : ''}
+                ${state.selectedBackground === bg.id ? '<div style="position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: white; font-weight: bold;">✓</div>' : ''}
               </button>
             `).join('')}
           </div>
@@ -719,10 +728,10 @@ function createEmailScreen() {
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
-        <!-- LEFT: Keyboard & Inputs (LARGER) -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <!-- Email Inputs (LARGER) -->
-          <div style="max-height: 35%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px;">
+        <!-- LEFT: Keyboard & Inputs (FIXED LAYOUT) -->
+        <div style="display: grid; grid-template-rows: minmax(200px, 30%) 1fr; gap: 12px;">
+          <!-- Email Inputs (FIXED HEIGHT - scrollable) -->
+          <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px;">
             ${state.emailAddresses.map((email, i) => `
               <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
@@ -754,14 +763,14 @@ function createEmailScreen() {
             `}
           </div>
 
-          <!-- Keyboard (MUCH LARGER with shortcuts) -->
-          <div style="flex: 1; display: flex; flex-direction: column;">
+          <!-- Keyboard (FIXED IN REMAINING SPACE) -->
+          <div style="display: flex; flex-direction: column; min-height: 0;">
             ${createKeyboard('email-0', true)}
           </div>
         </div>
 
-        <!-- RIGHT: Summary & Continue -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- RIGHT: Summary & Continue (FIXED LAYOUT) -->
+        <div style="display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px;">
           <!-- Summary Card -->
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: var(--shadow-lg);">
             <div style="font-size: 18px; font-weight: bold; margin-bottom: 16px;">Order Summary</div>
@@ -794,8 +803,11 @@ function createEmailScreen() {
             <div style="font-size: 12px; color: var(--color-gray-500);">of ${maxEmails} maximum</div>
           </div>
 
-          <!-- Continue Button -->
-          <button class="btn btn--gradient-success btn--large" id="nextBtn" style="width: 100%; height: 64px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg); margin-top: auto;">
+          <!-- Spacer to push button to bottom -->
+          <div></div>
+
+          <!-- Continue Button (FIXED AT BOTTOM) -->
+          <button class="btn btn--gradient-success btn--large" id="nextBtn" style="width: 100%; height: 64px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg);">
             CONTINUE →
           </button>
         </div>
