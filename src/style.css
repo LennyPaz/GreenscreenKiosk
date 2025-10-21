@@ -329,6 +329,18 @@
   }
 }
 
+/* Batch 7: Confetti celebration effect */
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
 /* ============================================
    2. RESET & BASE STYLES
    ============================================ */
@@ -498,8 +510,9 @@ input, button, textarea, select {
   box-shadow: var(--shadow-lg);
 }
 
+/* M6: Enhanced touch feedback */
 .btn:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
   box-shadow: var(--shadow-sm);
 }
 
@@ -692,6 +705,12 @@ input, button, textarea, select {
   user-select: none;
 }
 
+/* M6: Enhanced touch feedback for interactive cards */
+.card--interactive:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--shadow-sm);
+}
+
 .card--selected {
   border: 5px solid var(--color-success);
   box-shadow: 0 0 0 6px rgba(76, 175, 80, 0.4), var(--shadow-2xl);
@@ -864,8 +883,10 @@ input, button, textarea, select {
   transition: all var(--transition-base);
 }
 
+/* Batch 7: Animated progress dots */
 .progress__dot--complete {
   background: var(--color-success);
+  animation: progressPop 0.3s ease-out;
 }
 
 .progress__dot--current {
@@ -873,6 +894,36 @@ input, button, textarea, select {
   width: 24px;
   height: 24px;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+  animation: progressPulse 0.4s ease-out;
+}
+
+@keyframes progressPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes progressPulse {
+  0% {
+    transform: scale(0.8);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+  }
 }
 
 /* ============================================

@@ -9,23 +9,25 @@
 const state = {
   currentScreen: 'attract',        // Start with attract loop
   currentStep: 0,
-  totalSteps: 10,                  // Updated to 10 steps
+  totalSteps: 11,                  // FIXED: Actual workflow steps
+  screenHistory: [],               // M2: Navigation history stack for back button
   customerName: '',
   partySize: 1,
   selectedBackground: null,
-  backgroundName: '',              // NEW: Name of selected background
-  backgroundCategory: 'Nature',    // NEW: Current background category tab
+  backgroundName: '',              // Name of selected background
+  backgroundCategory: 'Nature',    // Current background category tab
   deliveryMethod: null,            // 'print' | 'email' | 'both'
   printQuantity: 0,
-  emailQuantity: 0,
-  emailAddresses: [],
+  emailAddresses: [],              // SIMPLIFIED: Array of email strings (no quantity concept)
   paymentMethod: null,
   customerPhoto: null,             // Base64 webcam image
+  photoCaptured: false,            // NEW: Track if photo was captured (for confirmation)
   customerNumber: null,
-  totalPrice: 0,                   // NEW: Calculated total
-  reviewedOnce: false,             // NEW: Track if they saw review
+  totalPrice: 0,                   // Calculated total
+  reviewedOnce: false,             // Track if they saw review
   config: null,
-  idleTimer: null                  // NEW: For attract loop timeout
+  idleTimer: null,                 // For attract loop timeout
+  isTransitioning: false           // M6: Prevent touches during screen transitions
 };
 
 // ============================================
@@ -89,6 +91,115 @@ async function loadConfig() {
       printPricing: { 1: 10, 2: 15, 3: 20, 4: 25, 5: 30, 6: 35, 7: 40, 8: 45 },
       emailPricing: { 1: 10, 2: 11, 3: 12, 4: 12.5, 5: 13 }
     };
+  }
+}
+
+// ============================================
+// PRICE CALCULATION (Batch 6: Live Preview)
+// ============================================
+/**
+ * Calculate current total price based on state
+ * @returns {number} Total price
+ */
+function calculateCurrentPrice() {
+  const config = state.config;
+  if (!config) return 0;
+
+  // Free mode
+  if (config.features?.freeMode) return 0;
+
+  let total = 0;
+
+  // Print pricing
+  if (state.deliveryMethod === 'print' || state.deliveryMethod === 'both') {
+    const printPrice = config.printPricing?.[state.printQuantity] || 0;
+    total += printPrice;
+  }
+
+  // Email pricing (base + per recipient)
+  if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
+    const baseEmailPrice = config.emailPricing?.[1] || 10;
+    const numRecipients = state.emailAddresses.filter(email => email.value && email.value.trim()).length;
+    total += baseEmailPrice + (numRecipients - 1); // Base + $1 per additional recipient
+  }
+
+  return total;
+}
+
+/**
+ * Update price display if it exists on current screen
+ */
+function updatePricePreview() {
+  const pricePreview = document.getElementById('pricePreview');
+  if (pricePreview) {
+    const price = calculateCurrentPrice();
+    pricePreview.textContent = `$${price.toFixed(2)}`;
+
+    // Add pulse animation on price change
+    pricePreview.style.animation = 'none';
+    setTimeout(() => {
+      pricePreview.style.animation = 'pulse 0.5s ease-out';
+    }, 10);
+  }
+}
+
+/**
+ * Generate price preview badge HTML for screens
+ * @returns {string} HTML for floating price badge
+ */
+function createPricePreviewBadge() {
+  const config = state.config;
+  if (!config || config.features?.freeMode) return '';
+
+  const currentPrice = calculateCurrentPrice();
+
+  // Only show if there's a selected delivery method
+  if (!state.deliveryMethod) return '';
+
+  return `
+    <div id="pricePreviewContainer" style="position: fixed; bottom: 80px; right: 20px; z-index: 90;">
+      <div style="background: var(--gradient-success); padding: 16px 24px; border-radius: 16px; box-shadow: var(--shadow-2xl); display: flex; flex-direction: column; align-items: center; animation: slideUp 0.3s ease-out;">
+        <div style="font-size: 12px; color: rgba(255,255,255,0.9); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px;">CURRENT TOTAL</div>
+        <div id="pricePreview" style="font-size: 36px; font-weight: bold; color: white; line-height: 1;">$${currentPrice.toFixed(2)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
+// NAVIGATION HELPERS (M2: History Stack)
+// ============================================
+/**
+ * Navigate to a new screen with history tracking
+ * @param {string} newScreen - Screen to navigate to
+ * @param {boolean} skipHistory - If true, don't add to history (for back navigation)
+ */
+function navigateTo(newScreen, skipHistory = false) {
+  // M6: Prevent navigation during transitions
+  if (state.isTransitioning) return;
+
+  // Don't track attract or receipt screens in history
+  if (!skipHistory && state.currentScreen !== 'attract' && state.currentScreen !== 'receipt') {
+    state.screenHistory.push(state.currentScreen);
+  }
+
+  state.currentScreen = newScreen;
+  render();
+}
+
+/**
+ * Navigate back using history stack
+ */
+function goBack() {
+  // M6: Prevent navigation during transitions
+  if (state.isTransitioning) return;
+
+  if (state.screenHistory.length > 0) {
+    const previousScreen = state.screenHistory.pop();
+    navigateTo(previousScreen, true); // skipHistory = true to avoid re-adding
+  } else {
+    // Fallback to attract if no history
+    navigateTo('attract', true);
   }
 }
 
@@ -165,6 +276,91 @@ function generateCustomerNumber() {
 }
 
 // ============================================
+// STATE PERSISTENCE (T1)
+// ============================================
+function saveState() {
+  // Don't save attract or receipt screens
+  if (state.currentScreen === 'attract' || state.currentScreen === 'receipt') {
+    return;
+  }
+
+  const stateToSave = {
+    currentScreen: state.currentScreen,
+    currentStep: state.currentStep,
+    screenHistory: state.screenHistory,
+    customerName: state.customerName,
+    partySize: state.partySize,
+    selectedBackground: state.selectedBackground,
+    backgroundName: state.backgroundName,
+    backgroundCategory: state.backgroundCategory,
+    deliveryMethod: state.deliveryMethod,
+    printQuantity: state.printQuantity,
+    emailAddresses: state.emailAddresses,
+    paymentMethod: state.paymentMethod,
+    totalPrice: state.totalPrice,
+    reviewedOnce: state.reviewedOnce,
+    timestamp: Date.now()
+  };
+
+  localStorage.setItem('kioskState', JSON.stringify(stateToSave));
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('kioskState');
+    if (!saved) return null;
+
+    const savedState = JSON.parse(saved);
+
+    // Check if saved state is less than 1 hour old
+    const oneHour = 60 * 60 * 1000;
+    if (Date.now() - savedState.timestamp > oneHour) {
+      clearSavedState();
+      return null;
+    }
+
+    return savedState;
+  } catch (error) {
+    console.error('Error loading saved state:', error);
+    return null;
+  }
+}
+
+function clearSavedState() {
+  localStorage.removeItem('kioskState');
+}
+
+function restoreState(savedState) {
+  if (!savedState) return;
+
+  state.currentScreen = savedState.currentScreen;
+  state.currentStep = savedState.currentStep;
+  state.screenHistory = savedState.screenHistory || [];
+  state.customerName = savedState.customerName;
+  state.partySize = savedState.partySize;
+  state.selectedBackground = savedState.selectedBackground;
+  state.backgroundName = savedState.backgroundName;
+  state.backgroundCategory = savedState.backgroundCategory;
+  state.deliveryMethod = savedState.deliveryMethod;
+  state.printQuantity = savedState.printQuantity;
+  // C6: Ensure email addresses are objects with IDs
+  state.emailAddresses = (savedState.emailAddresses || []).map(email =>
+    typeof email === 'string' ? { id: generateEmailId(), value: email } : email
+  );
+  state.paymentMethod = savedState.paymentMethod;
+  state.totalPrice = savedState.totalPrice;
+  state.reviewedOnce = savedState.reviewedOnce;
+}
+
+// ============================================
+// EMAIL ID GENERATOR (C6)
+// ============================================
+let emailIdCounter = 0;
+function generateEmailId() {
+  return `email-${Date.now()}-${emailIdCounter++}`;
+}
+
+// ============================================
 // ON-SCREEN KEYBOARD
 // ============================================
 function createKeyboard(inputId, includeEmailShortcuts = false) {
@@ -173,12 +369,12 @@ function createKeyboard(inputId, includeEmailShortcuts = false) {
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.'],
     ['@GMAIL', '@YAHOO', '@HOTMAIL', '@OUTLOOK'],
-    ['SPACE', 'DELETE']
+    ['SPACE', 'DELETE', 'DONE']
   ] : [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.', 'COM'],
-    ['SPACE', 'DELETE']
+    ['SPACE', 'DELETE', 'DONE']
   ];
 
   let html = '<div class="keyboard">';
@@ -189,11 +385,13 @@ function createKeyboard(inputId, includeEmailShortcuts = false) {
       const classes = ['keyboard__key'];
       if (key === 'SPACE') classes.push('keyboard__key--space');
       if (key === 'DELETE') classes.push('keyboard__key--delete', 'keyboard__key--wide');
+      if (key === 'DONE') classes.push('keyboard__key--wide');
       if (key.startsWith('@')) classes.push('keyboard__key--shortcut');
 
       const displayText = {
         'SPACE': 'Space',
         'DELETE': '⌫ Delete',
+        'DONE': '✓ Done',
         '@GMAIL': '@gmail.com',
         '@YAHOO': '@yahoo.com',
         '@HOTMAIL': '@hotmail.com',
@@ -223,7 +421,14 @@ function attachKeyboardListeners() {
 
       if (!input) return;
 
-      if (key === 'DELETE') {
+      if (key === 'DONE') {
+        // Trigger the next button click (simulates Enter key)
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn && !nextBtn.disabled) {
+          nextBtn.click();
+        }
+        return;
+      } else if (key === 'DELETE') {
         input.value = input.value.slice(0, -1);
       } else if (key === 'SPACE') {
         input.value += ' ';
@@ -241,11 +446,12 @@ function attachKeyboardListeners() {
         input.value += key.toLowerCase();
       }
 
-      // Update state for email inputs
+      // Update state for email inputs (C6: Using unique IDs)
       if (input.classList.contains('email-input')) {
-        const index = parseInt(input.dataset.index);
-        if (!isNaN(index)) {
-          state.emailAddresses[index] = input.value;
+        const emailId = input.dataset.emailId;
+        const emailObj = state.emailAddresses.find(email => email.id === emailId);
+        if (emailObj) {
+          emailObj.value = input.value;
         }
       }
 
@@ -265,7 +471,10 @@ function attachKeyboardListeners() {
 // ============================================
 function calculateCurrentPrice() {
   const printPrice = state.printQuantity > 0 ? (state.config?.printPricing?.[state.printQuantity] || 0) : 0;
-  const emailPrice = state.emailQuantity > 0 ? (state.config?.emailPricing?.[state.emailQuantity] || 0) : 0;
+  // SIMPLIFIED: Email pricing is per recipient (base + $1 per additional)
+  const emailCount = state.emailAddresses.length;
+  const baseEmailPrice = state.config?.emailPricing?.[1] || 10;
+  const emailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
   return printPrice + emailPrice;
 }
 
@@ -398,11 +607,11 @@ function createBackgroundScreen() {
 
   return `
     <div class="screen">
-      <!-- COMPACT HEADER -->
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Choose Background</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <!-- IMPROVED HEADER: Larger touch targets (MO1) -->
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Choose Background</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
@@ -421,7 +630,7 @@ function createBackgroundScreen() {
 
         <!-- MAIN CONTENT AREA - LARGER PREVIEW -->
         <div style="flex: 1; display: grid; grid-template-columns: 1fr 550px; gap: 12px; padding: 12px; overflow: hidden;">
-          <!-- LEFT: Background Grid (4 columns with proper sizing) -->
+          <!-- LEFT: Background Grid (4 columns with loading indicators - MO9) -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; overflow-y: auto; align-content: start; padding-right: 8px;">
             ${filteredBackgrounds.map(bg => `
               <button class="background-btn ${state.selectedBackground === bg.id ? 'bg-selected' : ''}"
@@ -429,8 +638,13 @@ function createBackgroundScreen() {
                       style="position: relative; border-radius: 10px; overflow: hidden; cursor: pointer;
                       aspect-ratio: 4/3; min-height: 140px;
                       border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid var(--color-border)'};
-                      background: url('${bg.img}') center/cover; transition: all 0.2s;
+                      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 2s infinite;
+                      transition: all 0.2s;
                       box-shadow: ${state.selectedBackground === bg.id ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
+                <!-- Background Image (loads on top of shimmer) -->
+                <div style="position: absolute; inset: 0; background: url('${bg.img}') center/cover; opacity: 0; transition: opacity 0.3s;" onload="this.style.opacity='1'"></div>
+                <img src="${bg.img}" style="display: none;" onload="this.previousElementSibling.style.opacity='1'">
+
                 <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5));">
                   <div style="position: absolute; bottom: 8px; left: 8px; right: 8px;">
                     <div style="color: white; font-size: 14px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
@@ -472,13 +686,16 @@ function createBackgroundScreen() {
               </div>
             `}
 
-            <!-- Custom Background Option -->
+            <!-- Custom Background Option (D1: Improved explanation) -->
             <button class="background-btn ${state.selectedBackground === 'custom' ? 'bg-selected' : ''}"
                     data-id="custom" data-name="Custom"
-                    style="height: 60px; background: var(--gradient-secondary); border-radius: 8px; border: ${state.selectedBackground === 'custom' ? '4px solid var(--color-success)' : '3px solid transparent'}; cursor: pointer; transition: all 0.2s; box-shadow: ${state.selectedBackground === 'custom' ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: white; font-weight: bold; font-size: 14px;">
-                <span style="font-size: 20px;">★</span>
-                CUSTOM BACKGROUND
+                    style="height: 80px; background: var(--gradient-secondary); border-radius: 8px; border: ${state.selectedBackground === 'custom' ? '4px solid var(--color-success)' : '3px solid transparent'}; cursor: pointer; transition: all 0.2s; box-shadow: ${state.selectedBackground === 'custom' ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'}; padding: 12px;">
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white;">
+                <div style="display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 16px;">
+                  <span style="font-size: 20px;">★</span>
+                  CUSTOM BACKGROUND
+                </div>
+                <div style="font-size: 11px; opacity: 0.9; text-align: center;">Request a specific background from the photographer</div>
               </div>
             </button>
 
@@ -502,10 +719,10 @@ function createBackgroundScreen() {
 function createPartySizeScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Party Size</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Party Size</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; max-height: calc(100vh - 36px - 40px);">
@@ -551,12 +768,20 @@ function createPartySizeScreen() {
 function createDeliveryScreen() {
   const config = state.config;
 
+  // Calculate pricing ranges for display (MO6)
+  const printMin = config?.printPricing?.[1] || 10;
+  const printMax = config?.printPricing?.[8] || 45;
+  const emailBase = config?.emailPricing?.[1] || 10;
+  const emailMax = emailBase + 4; // Base + 4 additional emails
+  const bothMin = printMin + emailBase;
+  const bothMax = printMax + emailMax;
+
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Delivery Method</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Delivery Method</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
@@ -577,7 +802,7 @@ function createDeliveryScreen() {
               • Take home tonight
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-success)'};">
-              $${config?.basePrice?.toFixed(2) || '10.00'}+
+              $${printMin.toFixed(2)} - $${printMax.toFixed(2)}
             </div>
           </button>
 
@@ -595,7 +820,7 @@ function createDeliveryScreen() {
               • Easy sharing
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-success)'};">
-              $${config?.emailPricing?.[1]?.toFixed(2) || '10.00'}+
+              $${emailBase.toFixed(2)} - $${emailMax.toFixed(2)}
             </div>
           </button>
 
@@ -618,7 +843,7 @@ function createDeliveryScreen() {
               • Best deal!
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-success)'};">
-              Great Value!
+              $${bothMin.toFixed(2)} - $${bothMax.toFixed(2)}
             </div>
           </button>
         </div>
@@ -647,27 +872,32 @@ function createQuantityScreen() {
   if (isPrintSelected && state.printQuantity === 0) {
     return `
       <div class="screen">
-        <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-          <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-          <div style="font-size: 15px; font-weight: 600;">Print Quantity</div>
-          <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+        <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+          <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+          <div style="font-size: 16px; font-weight: 600;">Print Quantity</div>
+          <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
         </header>
 
         <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
           <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 20px;">How many prints?</h1>
 
-          <!-- Quantity Grid -->
+          <!-- Quantity Grid (With Value Indicators) -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%; max-width: 900px; margin-bottom: 20px;">
             ${[1,2,3,4,5,6,7,8].map((num) => {
               const price = config?.printPricing?.[num] || (10 + (num-1) * 5);
               const perPrintPrice = (price / num).toFixed(2);
               const isSelected = state.printQuantity === num;
+              const basePrice = config?.printPricing?.[1] || 10;
+              const savings = ((basePrice * num) - price).toFixed(2);
+              const isBestValue = num >= 5; // 5+ prints is best value
+
               return `
                 <button class="quantity-btn" data-quantity="${num}" data-type="print"
-                        style="height: 140px; border-radius: 12px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
+                        style="position: relative; height: 140px; border-radius: 12px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
                         background: ${isSelected ? 'var(--gradient-success)' : 'white'}; padding: 16px; cursor: pointer; transition: all 0.2s;
                         box-shadow: ${isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                         display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                  ${isBestValue && !isSelected ? '<div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: bold; box-shadow: var(--shadow-md); white-space: nowrap;">SAVE $' + savings + '</div>' : ''}
                   <div style="font-size: 48px; font-weight: bold; line-height: 1; color: ${isSelected ? 'white' : 'var(--color-gray-900)'}; margin-bottom: 8px;">${num}</div>
                   <div style="width: 60%; height: 2px; background: ${isSelected ? 'rgba(255,255,255,0.4)' : 'var(--color-border)'}; margin-bottom: 8px;"></div>
                   <div style="font-size: 24px; font-weight: bold; color: ${isSelected ? 'white' : 'var(--color-success)'}; line-height: 1; margin-bottom: 4px;">$${price.toFixed(2)}</div>
@@ -685,6 +915,7 @@ function createQuantityScreen() {
         </main>
 
         ${createProgressBar(4, state.totalSteps)}
+        ${createPricePreviewBadge()}
       </div>
     `;
   }
@@ -706,46 +937,47 @@ function createQuantityScreen() {
 // SCREEN 7: EMAIL ENTRY - REDESIGNED
 // ============================================
 function createEmailScreen() {
-  // Ensure we have at least one email slot
+  // Ensure we have at least one email slot (C6: With unique ID)
   if (state.emailAddresses.length === 0) {
-    state.emailAddresses = [''];
+    state.emailAddresses = [{ id: generateEmailId(), value: '' }];
   }
 
   const config = state.config;
   const maxEmails = 8;
   const canAddMore = state.emailAddresses.length < maxEmails;
 
-  // Calculate price per email: BASE $10 + $1 per additional email
+  // SIMPLIFIED: Email pricing is per recipient (base + $1 per additional)
   const baseEmailPrice = config?.emailPricing?.[1] || 10;
-  const totalEmailPrice = state.emailAddresses.length > 0 ? baseEmailPrice + (state.emailAddresses.length - 1) : 0;
+  const emailCount = state.emailAddresses.length;
+  const totalEmailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Email Addresses</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Email Addresses</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
         <!-- LEFT: Keyboard & Inputs (KEYBOARD AT BOTTOM) -->
         <div style="display: grid; grid-template-rows: 1fr auto; gap: 12px; min-height: 0;">
-          <!-- Email Inputs (TAKES AVAILABLE SPACE - scrollable) -->
+          <!-- Email Inputs (C6: Using unique IDs) -->
           <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px; min-height: 200px;">
-            ${state.emailAddresses.map((email, i) => `
+            ${state.emailAddresses.map((emailObj, i) => `
               <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
                 <input
                   type="text"
                   class="input email-input"
-                  id="email-${i}"
-                  data-index="${i}"
+                  id="${emailObj.id}"
+                  data-email-id="${emailObj.id}"
                   placeholder="email@example.com"
-                  value="${email || ''}"
+                  value="${emailObj.value || ''}"
                   style="flex: 1; font-size: 18px; padding: 14px; border: 3px solid var(--color-border); border-radius: 10px;"
                 >
                 ${state.emailAddresses.length > 1 ? `
-                  <button class="btn btn--danger btn--small remove-email-btn" data-index="${i}" style="min-width: 44px; min-height: 44px; padding: 8px; font-size: 18px; border-radius: 10px;">
+                  <button class="btn btn--danger btn--small remove-email-btn" data-email-id="${emailObj.id}" style="min-width: 44px; min-height: 44px; padding: 8px; font-size: 18px; border-radius: 10px;">
                     ✕
                   </button>
                 ` : ''}
@@ -765,7 +997,7 @@ function createEmailScreen() {
 
           <!-- Keyboard (FIXED IN REMAINING SPACE) -->
           <div style="display: flex; flex-direction: column; min-height: 0;">
-            ${createKeyboard('email-0', true)}
+            ${createKeyboard(state.emailAddresses[0]?.id || 'email-0', true)}
           </div>
         </div>
 
@@ -824,10 +1056,10 @@ function createEmailScreen() {
 function createNameScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Your Name</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Your Name</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; max-height: calc(100vh - 36px - 40px); overflow: hidden;">
@@ -865,6 +1097,7 @@ function createNameScreen() {
       </main>
 
       ${createProgressBar(7, state.totalSteps)}
+      ${createPricePreviewBadge()}
     </div>
   `;
 }
@@ -873,18 +1106,16 @@ function createNameScreen() {
 // SCREEN 9: REVIEW & EDIT - REDESIGNED
 // ============================================
 function createReviewScreen() {
-  // Calculate total price
-  const printPrice = state.config?.printPricing?.[state.printQuantity] || 0;
-  const emailPrice = state.config?.emailPricing?.[state.emailQuantity] || 0;
-  const total = printPrice + emailPrice;
-  state.totalPrice = total;
+  // Batch 6: Use centralized price calculation
+  state.totalPrice = calculateCurrentPrice();
+  const total = state.totalPrice;
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Review Order</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Review Order</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 16px; padding: 16px; max-height: calc(100vh - 36px - 40px);">
@@ -928,11 +1159,11 @@ function createReviewScreen() {
               </div>
             ` : ''}
 
-            ${state.emailQuantity > 0 ? `
+            ${emailCount > 0 ? `
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
                 <div style="flex: 1;">
                   <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Emails</div>
-                  <div style="font-size: 14px; color: var(--color-gray-600);">${state.emailQuantity} ${state.emailQuantity === 1 ? 'address' : 'addresses'} • $${emailPrice.toFixed(2)}</div>
+                  <div style="font-size: 14px; color: var(--color-gray-600);">${emailCount} ${emailCount === 1 ? 'recipient' : 'recipients'} • $${emailPrice.toFixed(2)}</div>
                 </div>
                 <button class="btn btn--outline btn--small edit-btn" data-screen="email" style="font-size: 13px; padding: 6px 12px;">Edit</button>
               </div>
@@ -980,12 +1211,22 @@ function createReviewScreen() {
 // SCREEN 10: PAYMENT METHOD - REDESIGNED
 // ============================================
 function createPaymentScreen() {
+  const config = state.config;
+
+  // Filter payment methods by config (D5)
+  const paymentMethods = [
+    { id: 'cash', label: 'CASH', emoji: '💵', enabled: config?.features?.cash !== false },
+    { id: 'debit', label: 'DEBIT', emoji: '💳', enabled: true }, // Always available
+    { id: 'credit', label: 'CREDIT', emoji: '💳', enabled: config?.features?.creditCard !== false },
+    { id: 'check', label: 'CHECK', emoji: '🏦', enabled: config?.features?.check === true }
+  ].filter(method => method.enabled);
+
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">← Back</button>
-        <div style="font-size: 15px; font-weight: 600;">Payment Method</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Payment Method</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
@@ -997,43 +1238,24 @@ function createPaymentScreen() {
 
         <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 32px; text-align: center;">How will you pay?</h1>
 
-        <!-- Payment Options -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%; max-width: 1000px; margin-bottom: 30px;">
-          <button class="payment-btn" data-method="cash"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'cash' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'cash' ? 'var(--gradient-success)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'cash' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'cash' ? '💵' : '💵'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'cash' ? 'white' : 'var(--color-gray-900)'};">CASH</div>
-          </button>
+        <!-- Payment Options (D5: Filtered by config) -->
+        <div style="display: grid; grid-template-columns: repeat(${Math.min(paymentMethods.length, 4)}, 1fr); gap: 16px; width: 100%; max-width: ${paymentMethods.length * 260}px; margin-bottom: 30px;">
+          ${paymentMethods.map((method, index) => {
+            const gradients = ['var(--gradient-success)', 'var(--gradient-primary)', 'var(--gradient-ocean)', 'var(--gradient-secondary)'];
+            const gradient = gradients[index % gradients.length];
+            const isSelected = state.paymentMethod === method.id;
 
-          <button class="payment-btn" data-method="debit"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'debit' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'debit' ? 'var(--gradient-primary)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'debit' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'debit' ? '💳' : '💳'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'debit' ? 'white' : 'var(--color-gray-900)'};">DEBIT</div>
-          </button>
-
-          <button class="payment-btn" data-method="credit"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'credit' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'credit' ? 'var(--gradient-ocean)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'credit' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'credit' ? '💳' : '💳'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'credit' ? 'white' : 'var(--color-gray-900)'};">CREDIT</div>
-          </button>
-
-          <button class="payment-btn" data-method="check"
-                  style="height: 200px; border-radius: 16px; border: 4px solid ${state.paymentMethod === 'check' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.paymentMethod === 'check' ? 'var(--gradient-secondary)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
-                  box-shadow: ${state.paymentMethod === 'check' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
-                  display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 64px; margin-bottom: 16px;">${state.paymentMethod === 'check' ? '🏦' : '🏦'}</div>
-            <div style="font-size: 22px; font-weight: bold; color: ${state.paymentMethod === 'check' ? 'white' : 'var(--color-gray-900)'};">CHECK</div>
-          </button>
+            return `
+              <button class="payment-btn" data-method="${method.id}"
+                      style="height: 200px; border-radius: 16px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
+                      background: ${isSelected ? gradient : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
+                      box-shadow: ${isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
+                      display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="font-size: 64px; margin-bottom: 16px;">${method.emoji}</div>
+                <div style="font-size: 22px; font-weight: bold; color: ${isSelected ? 'white' : 'var(--color-gray-900)'};">${method.label}</div>
+              </button>
+            `;
+          }).join('')}
         </div>
 
         <!-- Continue Button -->
@@ -1054,10 +1276,10 @@ function createPaymentScreen() {
 function createPhotoScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 36px; max-height: 36px;">
-        <div style="min-width: 80px;"></div>
-        <div style="font-size: 15px; font-weight: 600;">Customer ID Photo</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 28px; font-size: 13px; padding: 4px 8px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
+        <div style="font-size: 16px; font-weight: 600;">Customer ID Photo</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
       </header>
 
       <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
@@ -1081,6 +1303,47 @@ function createPhotoScreen() {
           <span style="font-size: 32px; margin-right: 12px;">📷</span>
           CAPTURE PHOTO
         </button>
+      </main>
+
+      ${createProgressBar(10, state.totalSteps)}
+    </div>
+  `;
+}
+
+// ============================================
+// SCREEN 11B: PHOTO CONFIRMATION - NEW (C5)
+// ============================================
+function createPhotoConfirmScreen() {
+  return `
+    <div class="screen">
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
+        <div style="min-width: 80px;"></div>
+        <div style="font-size: 16px; font-weight: 600;">Review Photo</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      </header>
+
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px); gap: 20px;">
+        <div style="text-align: center;">
+          <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 12px;">How does this look?</h1>
+          <p style="font-size: 16px; color: var(--color-gray-600);">This photo helps us match you to your final photo</p>
+        </div>
+
+        <!-- Photo Preview -->
+        <div style="position: relative; width: 100%; max-width: 600px; aspect-ratio: 4/3; background: var(--color-gray-900); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-2xl);">
+          <img src="${state.customerPhoto}" alt="Captured Photo" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 16px; width: 100%; max-width: 600px;">
+          <button class="btn btn--outline btn--large" id="retakeBtn" style="flex: 1; height: 70px; font-size: 18px; font-weight: bold;">
+            <span style="font-size: 24px; margin-right: 8px;">↻</span>
+            RETAKE PHOTO
+          </button>
+          <button class="btn btn--gradient-success btn--large" id="usePhotoBtn" style="flex: 1; height: 70px; font-size: 18px; font-weight: bold;">
+            <span style="font-size: 24px; margin-right: 8px;">✓</span>
+            USE THIS PHOTO
+          </button>
+        </div>
       </main>
 
       ${createProgressBar(10, state.totalSteps)}
@@ -1120,11 +1383,23 @@ async function startWebcam() {
   } catch (error) {
     console.error('Error accessing webcam:', error);
     if (placeholder) {
+      // IMPROVED: Show error with retry and skip options
       placeholder.innerHTML = `
-        <div class="icon-camera" style="color: var(--color-error); transform: scale(2); margin-bottom: 16px;"></div>
-        <div style="font-size: 16px; color: var(--color-error); text-align: center; padding: 0 20px;">
-          Camera access denied or unavailable.<br>
-          <small>Please allow camera access and refresh.</small>
+        <div class="icon-camera" style="color: white; transform: scale(2); margin-bottom: 16px; opacity: 0.6;"></div>
+        <div style="font-size: 18px; color: white; text-align: center; padding: 0 20px; margin-bottom: 24px; font-weight: 600;">
+          Camera Unavailable
+        </div>
+        <div style="font-size: 14px; color: rgba(255,255,255,0.9); text-align: center; padding: 0 20px; margin-bottom: 32px;">
+          ${error.name === 'NotAllowedError' ? 'Camera access was denied' : 'Could not access camera'}<br>
+          <small style="font-size: 12px; opacity: 0.8;">Please allow camera permissions or try again</small>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button id="retryCamera" class="btn btn--primary" style="padding: 12px 24px; font-size: 14px; min-height: 44px;">
+            ↻ Retry
+          </button>
+          <button id="skipCamera" class="btn btn--outline" style="padding: 12px 24px; font-size: 14px; background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4); min-height: 44px;">
+            Skip Photo
+          </button>
         </div>
       `;
     }
@@ -1157,7 +1432,51 @@ function capturePhoto() {
 }
 
 // ============================================
-// SCREEN 12: PROCESSING
+// CELEBRATION EFFECTS (Batch 7)
+// ============================================
+/**
+ * Create confetti celebration effect
+ */
+function createConfetti() {
+  const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+  const confettiContainer = document.createElement('div');
+  confettiContainer.id = 'confettiContainer';
+  confettiContainer.style.cssText = 'position: fixed; inset: 0; pointer-events: none; z-index: 9999; overflow: hidden;';
+  document.body.appendChild(confettiContainer);
+
+  // Create 50 confetti pieces
+  for (let i = 0; i < 50; i++) {
+    const confetti = document.createElement('div');
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const left = Math.random() * 100;
+    const animationDuration = 2 + Math.random() * 3; // 2-5 seconds
+    const size = 8 + Math.random() * 8; // 8-16px
+    const delay = Math.random() * 0.5; // 0-0.5s delay
+
+    confetti.style.cssText = `
+      position: absolute;
+      left: ${left}%;
+      top: -20px;
+      width: ${size}px;
+      height: ${size}px;
+      background: ${color};
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      animation: confettiFall ${animationDuration}s ease-in-out ${delay}s forwards;
+      transform: rotate(${Math.random() * 360}deg);
+      opacity: 0.8;
+    `;
+
+    confettiContainer.appendChild(confetti);
+  }
+
+  // Remove confetti after animation completes
+  setTimeout(() => {
+    confettiContainer.remove();
+  }, 5500);
+}
+
+// ============================================
+// SCREEN 12: PROCESSING - IMPROVED (MO11)
 // ============================================
 function createProcessingScreen() {
   // Generate customer number if not already generated
@@ -1171,27 +1490,27 @@ function createProcessingScreen() {
         <div class="card card--glass" style="max-width: 800px; padding: var(--space-2xl);">
           <div class="text-center mb-2xl">
             <div class="animate-spin" style="width: 80px; height: 80px; border: 6px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; margin: 0 auto var(--space-xl);"></div>
-            <h1 class="text-3xl font-bold mb-md" style="color: white;">Processing...</h1>
+            <h1 class="text-3xl font-bold mb-md" style="color: white;">Finalizing Your Order...</h1>
           </div>
 
           <div style="background: rgba(255,255,255,0.2); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl);">
             <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
-              <div class="icon-check" style="color: var(--color-success);"></div>
-              <div class="text-xl" style="color: white;">Payment confirmed</div>
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">✓</div>
+              <div class="text-xl" style="color: white;">Order details confirmed</div>
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
-              <div class="icon-check" style="color: var(--color-success);"></div>
-              <div class="text-xl" style="color: white;">Information saved</div>
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">✓</div>
+              <div class="text-xl" style="color: white;">Customer number assigned</div>
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-md);">
               <div class="animate-spin" style="width: 32px; height: 32px; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%;"></div>
-              <div class="text-xl" style="color: white;">Printing receipt...</div>
+              <div class="text-xl" style="color: white;">Preparing receipt...</div>
             </div>
           </div>
 
           <div class="text-center">
             <div class="text-xl mb-sm" style="color: rgba(255,255,255,0.9);">Your customer number:</div>
-            <div class="text-4xl font-bold mb-xl" style="color: white;">${state.customerNumber}</div>
+            <div class="text-4xl font-bold mb-xl" style="color: white; background: rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 12px; display: inline-block;">${state.customerNumber}</div>
             <div class="text-lg" style="color: rgba(255,255,255,0.9);">Please proceed to the photographer</div>
           </div>
         </div>
@@ -1307,7 +1626,7 @@ function createReceiptScreen() {
               ${state.emailAddresses.length > 0 ? `
                 <div style="border: 1px solid #999; padding: 6px; margin-bottom: 10px; font-size: 9px;">
                   <div style="font-weight: bold;">Email Addresses:</div>
-                  ${state.emailAddresses.map((email, i) => `<div>${i + 1}. ${email || '(blank)'}</div>`).join('')}
+                  ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
                 </div>
               ` : ''}
 
@@ -1340,6 +1659,85 @@ function createReceiptScreen() {
       </main>
     </div>
   `;
+}
+
+// ============================================
+// CUSTOM START OVER MODAL (MO10)
+// ============================================
+function showStartOverModal() {
+  // Create modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'startOverModal';
+  modal.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.2s ease-out;
+  `;
+
+  modal.innerHTML = `
+    <div class="card card--glass" style="max-width: 500px; padding: 40px; text-align: center; animation: slideUp 0.3s ease-out;">
+      <div style="font-size: 56px; margin-bottom: 20px;">⚠️</div>
+      <h2 style="font-size: 28px; font-weight: bold; margin-bottom: 16px; color: white;">Start Over?</h2>
+      <p style="font-size: 16px; color: rgba(255,255,255,0.9); margin-bottom: 32px; line-height: 1.6;">
+        This will cancel your current session and you'll lose all progress.
+      </p>
+
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="cancelStartOver" class="btn btn--outline" style="flex: 1; max-width: 200px; height: 60px; font-size: 16px; font-weight: bold; background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);">
+          ← GO BACK
+        </button>
+        <button id="confirmStartOver" class="btn btn--danger btn--large" style="flex: 1; max-width: 200px; height: 60px; font-size: 16px; font-weight: bold; background: var(--color-error);">
+          ✕ START OVER
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Add click event to overlay (close on click outside)
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeStartOverModal();
+    }
+  });
+
+  // Attach button listeners
+  document.getElementById('cancelStartOver')?.addEventListener('click', closeStartOverModal);
+  document.getElementById('confirmStartOver')?.addEventListener('click', () => {
+    closeStartOverModal();
+    // Reset all state
+    state.currentStep = 0;
+    state.screenHistory = [];
+    state.customerName = '';
+    state.partySize = 1;
+    state.selectedBackground = null;
+    state.backgroundName = '';
+    state.deliveryMethod = null;
+    state.printQuantity = 0;
+    state.emailAddresses = [];
+    state.paymentMethod = null;
+    state.customerPhoto = null;
+    state.photoCaptured = false;
+    state.totalPrice = 0;
+    state.reviewedOnce = false;
+    clearSavedState();
+    navigateTo('attract', true); // skipHistory = true for attract screen
+  });
+}
+
+function closeStartOverModal() {
+  const modal = document.getElementById('startOverModal');
+  if (modal) {
+    modal.style.animation = 'fadeOut 0.2s ease-out';
+    setTimeout(() => modal.remove(), 200);
+  }
 }
 
 // ============================================
@@ -1385,6 +1783,9 @@ function render() {
     case 'photo':
       html = createPhotoScreen();
       break;
+    case 'photoConfirm':
+      html = createPhotoConfirmScreen();
+      break;
     case 'processing':
       html = createProcessingScreen();
       break;
@@ -1395,37 +1796,43 @@ function render() {
       html = createAttractScreen();
   }
 
-  // NO FLASHBANG - instant render
-  app.innerHTML = html;
-  attachEventListeners();
+  // M6: SMOOTH TRANSITIONS with touch prevention
+  state.isTransitioning = true;
+  app.style.opacity = '0';
+  app.style.transition = 'opacity 0.2s ease-out';
+
+  setTimeout(() => {
+    app.innerHTML = html;
+    attachEventListeners();
+
+    // Batch 7: Trigger confetti on receipt screen
+    if (state.currentScreen === 'receipt') {
+      setTimeout(() => createConfetti(), 500); // Delay for better effect
+    }
+
+    // Fade in
+    setTimeout(() => {
+      app.style.opacity = '1';
+      // Re-enable touches after transition completes
+      setTimeout(() => {
+        state.isTransitioning = false;
+      }, 200);
+    }, 10);
+
+    // AUTO-SAVE: Persist state after render (T1)
+    saveState();
+  }, 200);
 }
 
 // ============================================
 // EVENT LISTENERS
 // ============================================
 function attachEventListeners() {
-  // ==================== START OVER BUTTON (All Screens) ====================
+  // ==================== START OVER BUTTON (All Screens) - CUSTOM MODAL (MO10) ====================
   const startOverBtn = document.getElementById('startOverBtn');
   if (startOverBtn) {
     startOverBtn.addEventListener('click', () => {
-      if (confirm('Start over? All progress will be lost.')) {
-        // Reset all state
-        state.currentScreen = 'attract';
-        state.currentStep = 0;
-        state.customerName = '';
-        state.partySize = 1;
-        state.selectedBackground = null;
-        state.backgroundName = '';
-        state.deliveryMethod = null;
-        state.printQuantity = 0;
-        state.emailQuantity = 0;
-        state.emailAddresses = [];
-        state.paymentMethod = null;
-        state.customerPhoto = null;
-        state.totalPrice = 0;
-        state.reviewedOnce = false;
-        render();
-      }
+      showStartOverModal();
     });
   }
 
@@ -1433,8 +1840,7 @@ function attachEventListeners() {
   const attractScreen = document.getElementById('attractScreen');
   if (attractScreen) {
     attractScreen.addEventListener('click', () => {
-      state.currentScreen = 'welcome';
-      render();
+      navigateTo('welcome');
     });
   }
 
@@ -1442,8 +1848,7 @@ function attachEventListeners() {
   const startBtn = document.getElementById('startBtn');
   if (startBtn) {
     startBtn.addEventListener('click', () => {
-      state.currentScreen = 'background';
-      render();
+      navigateTo('background');
     });
   }
 
@@ -1487,9 +1892,8 @@ function attachEventListeners() {
       // Update state
       state.deliveryMethod = btn.dataset.method;
 
-      // Reset quantities when delivery method changes
+      // Reset quantities when delivery method changes (C6: Clear email objects)
       if (state.deliveryMethod === 'print') {
-        state.emailQuantity = 0;
         state.emailAddresses = [];
       } else if (state.deliveryMethod === 'email') {
         state.printQuantity = 0;
@@ -1530,38 +1934,75 @@ function attachEventListeners() {
         priceTrackerAmount.textContent = '$' + newTotal.toFixed(2);
       }
 
+      // Batch 6: Update floating price preview
+      updatePricePreview();
+
       // Enable next button
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) nextBtn.disabled = false;
     });
   });
 
-  // ==================== EMAIL ENTRY ====================
+  // ==================== EMAIL ENTRY (C6: Updated for unique IDs) ====================
   const emailInputs = document.querySelectorAll('.email-input');
   emailInputs.forEach(input => {
     input.addEventListener('input', (e) => {
-      const index = parseInt(e.target.dataset.index);
-      state.emailAddresses[index] = e.target.value;
+      const emailId = e.target.dataset.emailId;
+      const emailObj = state.emailAddresses.find(email => email.id === emailId);
+      if (emailObj) {
+        emailObj.value = e.target.value;
+      }
+      // Batch 6: Update price preview on email input change
+      updatePricePreview();
     });
   });
 
-  // Add email button (with real-time pricing)
+  // Add email button (with real-time pricing and duplicate prevention - T3)
   const addEmailBtn = document.getElementById('addEmailBtn');
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
-      state.emailAddresses.push('');
-      state.emailQuantity = state.emailAddresses.length; // Update count
+      state.emailAddresses.push({ id: generateEmailId(), value: '' });
       render();
     });
   }
+
+  // Validate for duplicates on blur (T3)
+  emailInputs.forEach(input => {
+    input.addEventListener('blur', (e) => {
+      const currentEmail = e.target.value.trim().toLowerCase();
+      if (!currentEmail) return;
+
+      const currentEmailId = e.target.dataset.emailId;
+      const hasDuplicate = state.emailAddresses.some(emailObj =>
+        emailObj.id !== currentEmailId && emailObj.value.trim().toLowerCase() === currentEmail
+      );
+
+      if (hasDuplicate) {
+        // Show warning styling
+        e.target.style.borderColor = 'var(--color-warning)';
+        e.target.style.background = 'rgba(255, 193, 7, 0.1)';
+
+        // Show temporary message
+        const warning = document.createElement('div');
+        warning.textContent = 'This email is already added';
+        warning.style.cssText = 'color: var(--color-warning); font-size: 12px; margin-top: 4px;';
+        e.target.parentElement.appendChild(warning);
+
+        setTimeout(() => {
+          warning.remove();
+          e.target.style.borderColor = '';
+          e.target.style.background = '';
+        }, 3000);
+      }
+    });
+  });
 
   // Remove email buttons (with real-time pricing)
   const removeEmailBtns = document.querySelectorAll('.remove-email-btn');
   removeEmailBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const index = parseInt(btn.dataset.index);
-      state.emailAddresses.splice(index, 1);
-      state.emailQuantity = state.emailAddresses.length; // Update count
+      const emailId = btn.dataset.emailId;
+      state.emailAddresses = state.emailAddresses.filter(email => email.id !== emailId);
       render();
     });
   });
@@ -1572,7 +2013,9 @@ function attachEventListeners() {
   // ==================== NAME ENTRY ====================
   const nameInput = document.getElementById('nameInput');
   if (nameInput) {
-    nameInput.focus();
+    // AUTO-FOCUS: Focus input after render (M7)
+    setTimeout(() => nameInput.focus(), 100);
+
     nameInput.addEventListener('input', (e) => {
       state.customerName = e.target.value;
     });
@@ -1584,42 +2027,21 @@ function attachEventListeners() {
     });
   }
 
-  // ==================== BACK BUTTON ====================
+  // AUTO-FOCUS: Email inputs (M7) (C6: Using unique ID)
+  const firstEmailInput = document.getElementById(state.emailAddresses[0]?.id);
+  if (firstEmailInput) {
+    setTimeout(() => firstEmailInput.focus(), 100);
+  }
+
+  // ==================== BACK BUTTON (M2: Using History Stack) ====================
   const backBtn = document.getElementById('backBtn');
   if (backBtn) {
     backBtn.addEventListener('click', () => {
-      // Navigate backwards through the flow
-      if (state.currentScreen === 'background') {
-        state.currentScreen = 'welcome';
-      } else if (state.currentScreen === 'partySize') {
-        state.currentScreen = 'background';
-      } else if (state.currentScreen === 'delivery') {
-        state.currentScreen = 'partySize';
-      } else if (state.currentScreen === 'quantity') {
-        state.currentScreen = 'delivery';
-      } else if (state.currentScreen === 'email') {
-        // If email only, go back to delivery; otherwise go to quantity
-        if (state.deliveryMethod === 'email') {
-          state.currentScreen = 'delivery';
-        } else if (state.deliveryMethod === 'both' && state.printQuantity > 0) {
-          state.emailQuantity = 0; // Reset email quantity
-          state.currentScreen = 'quantity';
-        } else {
-          state.currentScreen = 'quantity';
-        }
-      } else if (state.currentScreen === 'name') {
-        // If email was selected, go back to email
-        if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
-          state.currentScreen = 'email';
-        } else {
-          state.currentScreen = 'quantity';
-        }
-      } else if (state.currentScreen === 'review') {
-        state.currentScreen = 'name';
-      } else if (state.currentScreen === 'payment') {
-        state.currentScreen = 'review';
+      // Stop webcam if on photo screen
+      if (state.currentScreen === 'photo') {
+        stopWebcam();
       }
-      render();
+      goBack();
     });
   }
 
@@ -1628,8 +2050,7 @@ function attachEventListeners() {
   editBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetScreen = btn.dataset.screen;
-      state.currentScreen = targetScreen;
-      render();
+      navigateTo(targetScreen);
     });
   });
 
@@ -1637,8 +2058,7 @@ function attachEventListeners() {
   if (confirmBtn) {
     confirmBtn.addEventListener('click', () => {
       state.reviewedOnce = true;
-      state.currentScreen = 'payment';
-      render();
+      navigateTo('payment');
     });
   }
 
@@ -1671,22 +2091,60 @@ function attachEventListeners() {
 
       if (photoData) {
         state.customerPhoto = photoData;
+        state.photoCaptured = true;
 
         // Stop webcam
         stopWebcam();
 
-        // Advance to processing
-        state.currentScreen = 'processing';
-        render();
-
-        // Auto-advance to receipt after 3 seconds
-        setTimeout(() => {
-          state.currentScreen = 'receipt';
-          render();
-        }, 3000);
+        // IMPROVED: Show confirmation screen instead of auto-advancing
+        navigateTo('photoConfirm');
       } else {
         alert('Failed to capture photo. Please try again.');
       }
+    });
+  }
+
+  // Camera retry button (error recovery)
+  const retryCamera = document.getElementById('retryCamera');
+  if (retryCamera) {
+    retryCamera.addEventListener('click', () => {
+      render(); // Re-render photo screen to retry camera
+    });
+  }
+
+  // Camera skip button (error recovery)
+  const skipCamera = document.getElementById('skipCamera');
+  if (skipCamera) {
+    skipCamera.addEventListener('click', () => {
+      state.customerPhoto = null;
+      stopWebcam();
+      navigateTo('processing');
+      setTimeout(() => {
+        navigateTo('receipt');
+      }, 3000);
+    });
+  }
+
+  // ==================== PHOTO CONFIRMATION SCREEN ====================
+  const retakeBtn = document.getElementById('retakeBtn');
+  if (retakeBtn) {
+    retakeBtn.addEventListener('click', () => {
+      state.customerPhoto = null;
+      state.photoCaptured = false;
+      navigateTo('photo');
+    });
+  }
+
+  const usePhotoBtn = document.getElementById('usePhotoBtn');
+  if (usePhotoBtn) {
+    usePhotoBtn.addEventListener('click', () => {
+      // Advance to processing
+      navigateTo('processing');
+
+      // Auto-advance to receipt after 3 seconds
+      setTimeout(() => {
+        navigateTo('receipt');
+      }, 3000);
     });
   }
 
@@ -1700,7 +2158,7 @@ function attachEventListeners() {
 
   const countdownEl = document.getElementById('countdown');
   if (countdownEl) {
-    let timeLeft = 30;
+    let timeLeft = 60; // IMPROVED: Increased from 30 to 60 seconds (MO7)
     const countdownInterval = setInterval(() => {
       timeLeft--;
       if (countdownEl) countdownEl.textContent = timeLeft.toString();
@@ -1708,24 +2166,42 @@ function attachEventListeners() {
       if (timeLeft <= 0) {
         clearInterval(countdownInterval);
         // Reset state and return to attract
-        state.currentScreen = 'attract';
         state.currentStep = 0;
+        state.screenHistory = [];
         state.customerName = '';
         state.partySize = 1;
         state.selectedBackground = null;
         state.backgroundName = '';
         state.deliveryMethod = null;
         state.printQuantity = 0;
-        state.emailQuantity = 0;
         state.emailAddresses = [];
         state.paymentMethod = null;
         state.customerPhoto = null;
+        state.photoCaptured = false;
         state.customerNumber = null;
         state.totalPrice = 0;
         state.reviewedOnce = false;
-        render();
+        clearSavedState(); // Clear saved session on completion (T1)
+        navigateTo('attract', true); // skipHistory = true for attract screen
       }
     }, 1000);
+
+    // IMPROVED: Reset timer on user interaction (MO7)
+    const resetTimer = () => {
+      timeLeft = 60;
+    };
+
+    // Reset on any interaction
+    document.addEventListener('mousemove', resetTimer, { once: false, passive: true });
+    document.addEventListener('touchstart', resetTimer, { once: false, passive: true });
+    document.addEventListener('click', resetTimer, { once: false, passive: true });
+
+    // Clean up event listeners when countdown finishes
+    setTimeout(() => {
+      document.removeEventListener('mousemove', resetTimer);
+      document.removeEventListener('touchstart', resetTimer);
+      document.removeEventListener('click', resetTimer);
+    }, 60000);
   }
 
   // ==================== NEXT BUTTON ====================
@@ -1734,35 +2210,77 @@ function attachEventListeners() {
     nextBtn.addEventListener('click', () => {
       // Navigate forward through the flow
       if (state.currentScreen === 'background') {
-        state.currentScreen = 'partySize';
+        navigateTo('partySize');
       } else if (state.currentScreen === 'partySize') {
-        state.currentScreen = 'delivery';
+        navigateTo('delivery');
       } else if (state.currentScreen === 'delivery') {
         // If email only, skip quantity and go straight to email
         if (state.deliveryMethod === 'email') {
-          state.currentScreen = 'email';
+          navigateTo('email');
         } else {
-          state.currentScreen = 'quantity';
+          navigateTo('quantity');
         }
       } else if (state.currentScreen === 'quantity') {
         // Go to email entry directly (no quantity selection)
         if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
-          state.currentScreen = 'email';
+          navigateTo('email');
         } else {
-          state.currentScreen = 'name';
+          navigateTo('name');
         }
       } else if (state.currentScreen === 'email') {
-        state.currentScreen = 'name';
+        navigateTo('name');
       } else if (state.currentScreen === 'name') {
         const nameInput = document.getElementById('nameInput');
         state.customerName = nameInput?.value || 'Guest';
-        state.currentScreen = 'review';
+        navigateTo('review');
       } else if (state.currentScreen === 'payment') {
-        state.currentScreen = 'photo';
+        navigateTo('photo');
       }
-      render();
     });
   }
+}
+
+// ============================================
+// KEYBOARD SHORTCUTS
+// ============================================
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ignore if typing in an input field
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    // ESC: Go back
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      const backBtn = document.getElementById('backBtn');
+      if (backBtn && !backBtn.disabled) {
+        backBtn.click();
+      }
+    }
+
+    // ENTER: Continue/Next
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const nextBtn = document.getElementById('nextBtn');
+      const confirmBtn = document.getElementById('confirmBtn');
+      const usePhotoBtn = document.getElementById('usePhotoBtn');
+
+      if (nextBtn && !nextBtn.disabled) {
+        nextBtn.click();
+      } else if (confirmBtn && !confirmBtn.disabled) {
+        confirmBtn.click();
+      } else if (usePhotoBtn && !usePhotoBtn.disabled) {
+        usePhotoBtn.click();
+      }
+    }
+
+    // CTRL/CMD + R: Refresh warning (override default)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+      e.preventDefault();
+      showStartOverModal();
+    }
+  });
 }
 
 // ============================================
@@ -1770,13 +2288,64 @@ function attachEventListeners() {
 // ============================================
 async function init() {
   console.log('[INIT] Initializing Greenscreen Kiosk...');
-  
+
   // Load config
   state.config = await loadConfig();
   console.log('[CONFIG] Loaded successfully:', state.config);
-  
-  // Initial render
-  render();
+
+  // Setup keyboard shortcuts
+  setupKeyboardShortcuts();
+
+  // CHECK FOR SAVED STATE (T1)
+  const savedState = loadState();
+  if (savedState) {
+    // Show resume prompt
+    showResumePrompt(savedState);
+  } else {
+    // Initial render
+    render();
+  }
+}
+
+function showResumePrompt(savedState) {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const resumeHTML = `
+    <div class="screen" style="background: var(--gradient-primary);">
+      <main style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div class="card card--glass" style="max-width: 600px; padding: 40px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 20px;">🔄</div>
+          <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 16px; color: white;">Resume Session?</h1>
+          <p style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 32px;">
+            We found an incomplete session. Would you like to continue where you left off?
+          </p>
+
+          <div style="display: flex; gap: 16px; justify-content: center;">
+            <button id="resumeYes" class="btn btn--gradient-success btn--large" style="flex: 1; max-width: 250px; height: 70px; font-size: 18px; font-weight: bold;">
+              ✓ RESUME SESSION
+            </button>
+            <button id="resumeNo" class="btn btn--outline" style="flex: 1; max-width: 250px; height: 70px; font-size: 18px; font-weight: bold; background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);">
+              ✕ START NEW
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+
+  app.innerHTML = resumeHTML;
+
+  // Attach event listeners
+  document.getElementById('resumeYes')?.addEventListener('click', () => {
+    restoreState(savedState);
+    render();
+  });
+
+  document.getElementById('resumeNo')?.addEventListener('click', () => {
+    clearSavedState();
+    render();
+  });
 }
 
 // Start when page loads
