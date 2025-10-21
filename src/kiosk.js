@@ -95,6 +95,78 @@ async function loadConfig() {
 }
 
 // ============================================
+// PRICE CALCULATION (Batch 6: Live Preview)
+// ============================================
+/**
+ * Calculate current total price based on state
+ * @returns {number} Total price
+ */
+function calculateCurrentPrice() {
+  const config = state.config;
+  if (!config) return 0;
+
+  // Free mode
+  if (config.features?.freeMode) return 0;
+
+  let total = 0;
+
+  // Print pricing
+  if (state.deliveryMethod === 'print' || state.deliveryMethod === 'both') {
+    const printPrice = config.printPricing?.[state.printQuantity] || 0;
+    total += printPrice;
+  }
+
+  // Email pricing (base + per recipient)
+  if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
+    const baseEmailPrice = config.emailPricing?.[1] || 10;
+    const numRecipients = state.emailAddresses.filter(email => email.value && email.value.trim()).length;
+    total += baseEmailPrice + (numRecipients - 1); // Base + $1 per additional recipient
+  }
+
+  return total;
+}
+
+/**
+ * Update price display if it exists on current screen
+ */
+function updatePricePreview() {
+  const pricePreview = document.getElementById('pricePreview');
+  if (pricePreview) {
+    const price = calculateCurrentPrice();
+    pricePreview.textContent = `$${price.toFixed(2)}`;
+
+    // Add pulse animation on price change
+    pricePreview.style.animation = 'none';
+    setTimeout(() => {
+      pricePreview.style.animation = 'pulse 0.5s ease-out';
+    }, 10);
+  }
+}
+
+/**
+ * Generate price preview badge HTML for screens
+ * @returns {string} HTML for floating price badge
+ */
+function createPricePreviewBadge() {
+  const config = state.config;
+  if (!config || config.features?.freeMode) return '';
+
+  const currentPrice = calculateCurrentPrice();
+
+  // Only show if there's a selected delivery method
+  if (!state.deliveryMethod) return '';
+
+  return `
+    <div id="pricePreviewContainer" style="position: fixed; bottom: 80px; right: 20px; z-index: 90;">
+      <div style="background: var(--gradient-success); padding: 16px 24px; border-radius: 16px; box-shadow: var(--shadow-2xl); display: flex; flex-direction: column; align-items: center; animation: slideUp 0.3s ease-out;">
+        <div style="font-size: 12px; color: rgba(255,255,255,0.9); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px;">CURRENT TOTAL</div>
+        <div id="pricePreview" style="font-size: 36px; font-weight: bold; color: white; line-height: 1;">$${currentPrice.toFixed(2)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // NAVIGATION HELPERS (M2: History Stack)
 // ============================================
 /**
@@ -843,6 +915,7 @@ function createQuantityScreen() {
         </main>
 
         ${createProgressBar(4, state.totalSteps)}
+        ${createPricePreviewBadge()}
       </div>
     `;
   }
@@ -1024,6 +1097,7 @@ function createNameScreen() {
       </main>
 
       ${createProgressBar(7, state.totalSteps)}
+      ${createPricePreviewBadge()}
     </div>
   `;
 }
@@ -1032,13 +1106,9 @@ function createNameScreen() {
 // SCREEN 9: REVIEW & EDIT - REDESIGNED
 // ============================================
 function createReviewScreen() {
-  // Calculate total price (FIXED: use simplified email pricing)
-  const printPrice = state.config?.printPricing?.[state.printQuantity] || 0;
-  const emailCount = state.emailAddresses.length;
-  const baseEmailPrice = state.config?.emailPricing?.[1] || 10;
-  const emailPrice = emailCount > 0 ? baseEmailPrice + (emailCount - 1) : 0;
-  const total = printPrice + emailPrice;
-  state.totalPrice = total;
+  // Batch 6: Use centralized price calculation
+  state.totalPrice = calculateCurrentPrice();
+  const total = state.totalPrice;
 
   return `
     <div class="screen">
@@ -1815,6 +1885,9 @@ function attachEventListeners() {
         priceTrackerAmount.textContent = '$' + newTotal.toFixed(2);
       }
 
+      // Batch 6: Update floating price preview
+      updatePricePreview();
+
       // Enable next button
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) nextBtn.disabled = false;
@@ -1830,6 +1903,8 @@ function attachEventListeners() {
       if (emailObj) {
         emailObj.value = e.target.value;
       }
+      // Batch 6: Update price preview on email input change
+      updatePricePreview();
     });
   });
 
