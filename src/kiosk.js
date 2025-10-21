@@ -166,6 +166,80 @@ function generateCustomerNumber() {
 }
 
 // ============================================
+// STATE PERSISTENCE (T1)
+// ============================================
+function saveState() {
+  // Don't save attract or receipt screens
+  if (state.currentScreen === 'attract' || state.currentScreen === 'receipt') {
+    return;
+  }
+
+  const stateToSave = {
+    currentScreen: state.currentScreen,
+    currentStep: state.currentStep,
+    screenHistory: state.screenHistory,
+    customerName: state.customerName,
+    partySize: state.partySize,
+    selectedBackground: state.selectedBackground,
+    backgroundName: state.backgroundName,
+    backgroundCategory: state.backgroundCategory,
+    deliveryMethod: state.deliveryMethod,
+    printQuantity: state.printQuantity,
+    emailAddresses: state.emailAddresses,
+    paymentMethod: state.paymentMethod,
+    totalPrice: state.totalPrice,
+    reviewedOnce: state.reviewedOnce,
+    timestamp: Date.now()
+  };
+
+  localStorage.setItem('kioskState', JSON.stringify(stateToSave));
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('kioskState');
+    if (!saved) return null;
+
+    const savedState = JSON.parse(saved);
+
+    // Check if saved state is less than 1 hour old
+    const oneHour = 60 * 60 * 1000;
+    if (Date.now() - savedState.timestamp > oneHour) {
+      clearSavedState();
+      return null;
+    }
+
+    return savedState;
+  } catch (error) {
+    console.error('Error loading saved state:', error);
+    return null;
+  }
+}
+
+function clearSavedState() {
+  localStorage.removeItem('kioskState');
+}
+
+function restoreState(savedState) {
+  if (!savedState) return;
+
+  state.currentScreen = savedState.currentScreen;
+  state.currentStep = savedState.currentStep;
+  state.screenHistory = savedState.screenHistory || [];
+  state.customerName = savedState.customerName;
+  state.partySize = savedState.partySize;
+  state.selectedBackground = savedState.selectedBackground;
+  state.backgroundName = savedState.backgroundName;
+  state.backgroundCategory = savedState.backgroundCategory;
+  state.deliveryMethod = savedState.deliveryMethod;
+  state.printQuantity = savedState.printQuantity;
+  state.emailAddresses = savedState.emailAddresses || [];
+  state.paymentMethod = savedState.paymentMethod;
+  state.totalPrice = savedState.totalPrice;
+  state.reviewedOnce = savedState.reviewedOnce;
+}
+
+// ============================================
 // ON-SCREEN KEYBOARD
 // ============================================
 function createKeyboard(inputId, includeEmailShortcuts = false) {
@@ -434,7 +508,7 @@ function createBackgroundScreen() {
 
         <!-- MAIN CONTENT AREA - LARGER PREVIEW -->
         <div style="flex: 1; display: grid; grid-template-columns: 1fr 550px; gap: 12px; padding: 12px; overflow: hidden;">
-          <!-- LEFT: Background Grid (4 columns with proper sizing) -->
+          <!-- LEFT: Background Grid (4 columns with loading indicators - MO9) -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; overflow-y: auto; align-content: start; padding-right: 8px;">
             ${filteredBackgrounds.map(bg => `
               <button class="background-btn ${state.selectedBackground === bg.id ? 'bg-selected' : ''}"
@@ -442,8 +516,13 @@ function createBackgroundScreen() {
                       style="position: relative; border-radius: 10px; overflow: hidden; cursor: pointer;
                       aspect-ratio: 4/3; min-height: 140px;
                       border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid var(--color-border)'};
-                      background: url('${bg.img}') center/cover; transition: all 0.2s;
+                      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 2s infinite;
+                      transition: all 0.2s;
                       box-shadow: ${state.selectedBackground === bg.id ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
+                <!-- Background Image (loads on top of shimmer) -->
+                <div style="position: absolute; inset: 0; background: url('${bg.img}') center/cover; opacity: 0; transition: opacity 0.3s;" onload="this.style.opacity='1'"></div>
+                <img src="${bg.img}" style="display: none;" onload="this.previousElementSibling.style.opacity='1'">
+
                 <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5));">
                   <div style="position: absolute; bottom: 8px; left: 8px; right: 8px;">
                     <div style="color: white; font-size: 14px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
@@ -1228,7 +1307,7 @@ function capturePhoto() {
 }
 
 // ============================================
-// SCREEN 12: PROCESSING
+// SCREEN 12: PROCESSING - IMPROVED (MO11)
 // ============================================
 function createProcessingScreen() {
   // Generate customer number if not already generated
@@ -1242,27 +1321,27 @@ function createProcessingScreen() {
         <div class="card card--glass" style="max-width: 800px; padding: var(--space-2xl);">
           <div class="text-center mb-2xl">
             <div class="animate-spin" style="width: 80px; height: 80px; border: 6px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; margin: 0 auto var(--space-xl);"></div>
-            <h1 class="text-3xl font-bold mb-md" style="color: white;">Processing...</h1>
+            <h1 class="text-3xl font-bold mb-md" style="color: white;">Finalizing Your Order...</h1>
           </div>
 
           <div style="background: rgba(255,255,255,0.2); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl);">
             <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
-              <div class="icon-check" style="color: var(--color-success);"></div>
-              <div class="text-xl" style="color: white;">Payment confirmed</div>
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">✓</div>
+              <div class="text-xl" style="color: white;">Order details confirmed</div>
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
-              <div class="icon-check" style="color: var(--color-success);"></div>
-              <div class="text-xl" style="color: white;">Information saved</div>
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">✓</div>
+              <div class="text-xl" style="color: white;">Customer number assigned</div>
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-md);">
               <div class="animate-spin" style="width: 32px; height: 32px; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%;"></div>
-              <div class="text-xl" style="color: white;">Printing receipt...</div>
+              <div class="text-xl" style="color: white;">Preparing receipt...</div>
             </div>
           </div>
 
           <div class="text-center">
             <div class="text-xl mb-sm" style="color: rgba(255,255,255,0.9);">Your customer number:</div>
-            <div class="text-4xl font-bold mb-xl" style="color: white;">${state.customerNumber}</div>
+            <div class="text-4xl font-bold mb-xl" style="color: white; background: rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 12px; display: inline-block;">${state.customerNumber}</div>
             <div class="text-lg" style="color: rgba(255,255,255,0.9);">Please proceed to the photographer</div>
           </div>
         </div>
@@ -1414,6 +1493,86 @@ function createReceiptScreen() {
 }
 
 // ============================================
+// CUSTOM START OVER MODAL (MO10)
+// ============================================
+function showStartOverModal() {
+  // Create modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'startOverModal';
+  modal.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.2s ease-out;
+  `;
+
+  modal.innerHTML = `
+    <div class="card card--glass" style="max-width: 500px; padding: 40px; text-align: center; animation: slideUp 0.3s ease-out;">
+      <div style="font-size: 56px; margin-bottom: 20px;">⚠️</div>
+      <h2 style="font-size: 28px; font-weight: bold; margin-bottom: 16px; color: white;">Start Over?</h2>
+      <p style="font-size: 16px; color: rgba(255,255,255,0.9); margin-bottom: 32px; line-height: 1.6;">
+        This will cancel your current session and you'll lose all progress.
+      </p>
+
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="cancelStartOver" class="btn btn--outline" style="flex: 1; max-width: 200px; height: 60px; font-size: 16px; font-weight: bold; background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);">
+          ← GO BACK
+        </button>
+        <button id="confirmStartOver" class="btn btn--danger btn--large" style="flex: 1; max-width: 200px; height: 60px; font-size: 16px; font-weight: bold; background: var(--color-error);">
+          ✕ START OVER
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Add click event to overlay (close on click outside)
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeStartOverModal();
+    }
+  });
+
+  // Attach button listeners
+  document.getElementById('cancelStartOver')?.addEventListener('click', closeStartOverModal);
+  document.getElementById('confirmStartOver')?.addEventListener('click', () => {
+    closeStartOverModal();
+    // Reset all state
+    state.currentScreen = 'attract';
+    state.currentStep = 0;
+    state.screenHistory = [];
+    state.customerName = '';
+    state.partySize = 1;
+    state.selectedBackground = null;
+    state.backgroundName = '';
+    state.deliveryMethod = null;
+    state.printQuantity = 0;
+    state.emailAddresses = [];
+    state.paymentMethod = null;
+    state.customerPhoto = null;
+    state.photoCaptured = false;
+    state.totalPrice = 0;
+    state.reviewedOnce = false;
+    clearSavedState();
+    render();
+  });
+}
+
+function closeStartOverModal() {
+  const modal = document.getElementById('startOverModal');
+  if (modal) {
+    modal.style.animation = 'fadeOut 0.2s ease-out';
+    setTimeout(() => modal.remove(), 200);
+  }
+}
+
+// ============================================
 // RENDER FUNCTION
 // ============================================
 function render() {
@@ -1472,35 +1631,20 @@ function render() {
   // NO FLASHBANG - instant render
   app.innerHTML = html;
   attachEventListeners();
+
+  // AUTO-SAVE: Persist state after render (T1)
+  saveState();
 }
 
 // ============================================
 // EVENT LISTENERS
 // ============================================
 function attachEventListeners() {
-  // ==================== START OVER BUTTON (All Screens) ====================
+  // ==================== START OVER BUTTON (All Screens) - CUSTOM MODAL (MO10) ====================
   const startOverBtn = document.getElementById('startOverBtn');
   if (startOverBtn) {
     startOverBtn.addEventListener('click', () => {
-      if (confirm('Start over? All progress will be lost.')) {
-        // Reset all state
-        state.currentScreen = 'attract';
-        state.currentStep = 0;
-        state.screenHistory = [];
-        state.customerName = '';
-        state.partySize = 1;
-        state.selectedBackground = null;
-        state.backgroundName = '';
-        state.deliveryMethod = null;
-        state.printQuantity = 0;
-        state.emailAddresses = [];
-        state.paymentMethod = null;
-        state.customerPhoto = null;
-        state.photoCaptured = false;
-        state.totalPrice = 0;
-        state.reviewedOnce = false;
-        render();
-      }
+      showStartOverModal();
     });
   }
 
@@ -1883,6 +2027,7 @@ function attachEventListeners() {
         state.customerNumber = null;
         state.totalPrice = 0;
         state.reviewedOnce = false;
+        clearSavedState(); // Clear saved session on completion (T1)
         render();
       }
     }, 1000);
@@ -1947,13 +2092,61 @@ function attachEventListeners() {
 // ============================================
 async function init() {
   console.log('[INIT] Initializing Greenscreen Kiosk...');
-  
+
   // Load config
   state.config = await loadConfig();
   console.log('[CONFIG] Loaded successfully:', state.config);
-  
-  // Initial render
-  render();
+
+  // CHECK FOR SAVED STATE (T1)
+  const savedState = loadState();
+  if (savedState) {
+    // Show resume prompt
+    showResumePrompt(savedState);
+  } else {
+    // Initial render
+    render();
+  }
+}
+
+function showResumePrompt(savedState) {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const resumeHTML = `
+    <div class="screen" style="background: var(--gradient-primary);">
+      <main style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div class="card card--glass" style="max-width: 600px; padding: 40px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 20px;">🔄</div>
+          <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 16px; color: white;">Resume Session?</h1>
+          <p style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 32px;">
+            We found an incomplete session. Would you like to continue where you left off?
+          </p>
+
+          <div style="display: flex; gap: 16px; justify-content: center;">
+            <button id="resumeYes" class="btn btn--gradient-success btn--large" style="flex: 1; max-width: 250px; height: 70px; font-size: 18px; font-weight: bold;">
+              ✓ RESUME SESSION
+            </button>
+            <button id="resumeNo" class="btn btn--outline" style="flex: 1; max-width: 250px; height: 70px; font-size: 18px; font-weight: bold; background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);">
+              ✕ START NEW
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+
+  app.innerHTML = resumeHTML;
+
+  // Attach event listeners
+  document.getElementById('resumeYes')?.addEventListener('click', () => {
+    restoreState(savedState);
+    render();
+  });
+
+  document.getElementById('resumeNo')?.addEventListener('click', () => {
+    clearSavedState();
+    render();
+  });
 }
 
 // Start when page loads
