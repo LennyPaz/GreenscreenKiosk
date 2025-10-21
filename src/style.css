@@ -75,15 +75,15 @@
   --glass-blur-strong: blur(20px);
 
   /* ============================================
-     SPACING SYSTEM (8px base grid)
+     SPACING SYSTEM (4px base grid - COMPACT)
      ============================================ */
-  --space-xs: 0.5rem;     /* 8px */
-  --space-sm: 1rem;       /* 16px */
-  --space-md: 1.5rem;     /* 24px */
-  --space-lg: 2rem;       /* 32px */
-  --space-xl: 3rem;       /* 48px */
-  --space-2xl: 4rem;      /* 64px */
-  --space-3xl: 6rem;      /* 96px */
+  --space-xs: 0.25rem;    /* 4px */
+  --space-sm: 0.5rem;     /* 8px */
+  --space-md: 0.75rem;    /* 12px */
+  --space-lg: 1rem;       /* 16px */
+  --space-xl: 1.5rem;     /* 24px */
+  --space-2xl: 2rem;      /* 32px */
+  --space-3xl: 3rem;      /* 48px */
 
   /* ============================================
      TYPOGRAPHY (Kiosk-sized)
@@ -93,15 +93,15 @@
   --font-primary: 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-display: 'Segoe UI', system-ui, -apple-system, sans-serif;
 
-  /* Font sizes - larger for kiosk */
-  --text-xs: 1rem;        /* 16px */
-  --text-sm: 1.25rem;     /* 20px */
-  --text-base: 1.5rem;    /* 24px */
-  --text-lg: 2rem;        /* 32px */
-  --text-xl: 2.5rem;      /* 40px */
-  --text-2xl: 3rem;       /* 48px */
-  --text-3xl: 4rem;       /* 64px */
-  --text-4xl: 5rem;       /* 80px */
+  /* Font sizes - COMPACT for kiosk */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.25rem;     /* 20px */
+  --text-xl: 1.5rem;      /* 24px */
+  --text-2xl: 1.75rem;    /* 28px */
+  --text-3xl: 2rem;       /* 32px */
+  --text-4xl: 2.5rem;     /* 40px */
 
   /* Font weights */
   --font-normal: 400;
@@ -119,10 +119,10 @@
      SIZING
      ============================================ */
 
-  /* Touch targets - minimum for accessibility */
-  --touch-min: 80px;
-  --touch-comfortable: 100px;
-  --touch-large: 120px;
+  /* Touch targets - COMPACT for space efficiency */
+  --touch-min: 50px;
+  --touch-comfortable: 60px;
+  --touch-large: 70px;
 
   /* Container widths */
   --container-sm: 640px;
@@ -179,9 +179,9 @@
   /* ============================================
      LAYOUT
      ============================================ */
-  --header-height: 80px;
+  --header-height: 45px;
   --footer-height: 100px;
-  --progress-bar-height: 60px;
+  --progress-bar-height: 40px;
 }
 
 /* ============================================
@@ -702,17 +702,17 @@ input, button, textarea, select {
 .card--selected::before {
   content: '✓';
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 56px;
-  height: 56px;
+  top: 6px;
+  right: 6px;
+  width: 40px;
+  height: 40px;
   background: var(--color-success);
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 24px;
   font-weight: bold;
   box-shadow: var(--shadow-xl);
   z-index: 10;
@@ -924,8 +924,8 @@ input, button, textarea, select {
 
 .keyboard__row {
   display: grid;
-  gap: 4px;
-  grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+  gap: 3px;
+  grid-template-columns: repeat(auto-fit, minmax(45px, 1fr));
 }
 
 .keyboard__key {
@@ -933,12 +933,12 @@ input, button, textarea, select {
   color: var(--color-white);
   border: none;
   border-radius: var(--radius-sm);
-  padding: 8px;
-  font-size: 16px;
+  padding: 6px;
+  font-size: 14px;
   font-weight: var(--font-semibold);
   cursor: pointer;
   transition: all var(--transition-base);
-  min-height: 45px;
+  min-height: 35px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1035,20 +1035,20 @@ input, button, textarea, select {
 }
 
 .screen__header {
-  padding: 8px 16px;
+  padding: 6px 12px;
   display: grid;
-  grid-template-columns: 120px 1fr 120px;
+  grid-template-columns: 100px 1fr 100px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid var(--color-border);
-  min-height: 50px;
-  max-height: 50px;
+  min-height: 45px;
+  max-height: 45px;
 }
 
 .screen__header > *:nth-child(2) {
   text-align: center;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
