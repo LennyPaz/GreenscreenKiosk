@@ -599,10 +599,10 @@ function createEmailScreen() {
         <button class="btn btn--danger btn--small" id="startOverBtn">✕ Start Over</button>
       </header>
 
-      <main class="screen__body" style="padding: 6px; overflow-y: auto;">
-        <div style="display: grid; grid-template-columns: 35% 40% 25%; gap: 8px;">
+      <main class="screen__body" style="padding: 6px;">
+        <div style="display: grid; grid-template-columns: 35% 40% 25%; gap: 8px; height: 100%;">
           <!-- LEFT: Email inputs -->
-          <div>
+          <div style="overflow-y: auto; max-height: 100%;">
             <div id="emailContainer" style="display: grid; gap: 6px; margin-bottom: 8px;">
               ${state.emailAddresses.map((email, i) => {
                 const price = emailPrices[i];
@@ -899,22 +899,26 @@ function createPhotoScreen() {
         <button class="btn btn--danger btn--small" id="startOverBtn">✕ Start Over</button>
       </header>
 
-      <main class="screen__body">
-        <div class="text-center mb-xl">
-          <h1 class="text-3xl font-bold mb-md">Quick ID Photo</h1>
-          <p class="text-xl text-gray">This helps us match you to your final photo</p>
+      <main class="screen__body" style="padding: 8px;">
+        <div class="text-center" style="margin-bottom: 10px;">
+          <h1 style="font-size: 22px; font-weight: bold; margin-bottom: 4px;">Quick ID Photo</h1>
+          <p style="font-size: 14px; color: var(--color-gray-500);">This helps us match you to your final photo</p>
         </div>
 
-        <div class="card card--glass" style="max-width: 700px; padding: var(--space-xl); margin-bottom: var(--space-xl);">
-          <div style="width: 100%; aspect-ratio: 4/3; background: var(--color-gray-800); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-lg);">
-            <div class="icon-camera" style="color: var(--color-gray-400); transform: scale(3);"></div>
-            <div class="text-xl" style="position: absolute; margin-top: 200px; color: var(--color-gray-400);">Webcam feed will appear here</div>
+        <div class="card card--glass" style="max-width: 800px; padding: 12px; margin-bottom: 10px;">
+          <div style="position: relative; width: 100%; aspect-ratio: 4/3; background: var(--color-gray-900); border-radius: var(--radius-lg); overflow: hidden;">
+            <video id="webcamVideo" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; display: block;"></video>
+            <canvas id="photoCanvas" style="display: none;"></canvas>
+            <div id="webcamPlaceholder" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--color-gray-800);">
+              <div class="icon-camera" style="color: var(--color-gray-400); transform: scale(2); margin-bottom: 16px;"></div>
+              <div style="font-size: 16px; color: var(--color-gray-400);">Initializing camera...</div>
+            </div>
           </div>
         </div>
 
         <div class="flex-center">
-          <button class="btn btn--gradient-success btn--huge" id="captureBtn">
-            <span class="icon-camera" style="transform: scale(1.5);"></span>
+          <button class="btn btn--gradient-success btn--large" id="captureBtn" style="font-size: 18px; padding: 14px 32px;">
+            <span class="icon-camera" style="transform: scale(1.2);"></span>
             <span>CAPTURE PHOTO</span>
           </button>
         </div>
@@ -923,6 +927,74 @@ function createPhotoScreen() {
       ${createProgressBar(10, state.totalSteps)}
     </div>
   `;
+}
+
+// ============================================
+// WEBCAM FUNCTIONS
+// ============================================
+let webcamStream = null;
+
+async function startWebcam() {
+  const video = document.getElementById('webcamVideo');
+  const placeholder = document.getElementById('webcamPlaceholder');
+
+  if (!video) return;
+
+  try {
+    // Request webcam access
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'user'
+      },
+      audio: false
+    });
+
+    // Set video source
+    video.srcObject = webcamStream;
+
+    // Hide placeholder once video starts playing
+    video.addEventListener('loadedmetadata', () => {
+      if (placeholder) placeholder.style.display = 'none';
+    });
+  } catch (error) {
+    console.error('Error accessing webcam:', error);
+    if (placeholder) {
+      placeholder.innerHTML = `
+        <div class="icon-camera" style="color: var(--color-error); transform: scale(2); margin-bottom: 16px;"></div>
+        <div style="font-size: 16px; color: var(--color-error); text-align: center; padding: 0 20px;">
+          Camera access denied or unavailable.<br>
+          <small>Please allow camera access and refresh.</small>
+        </div>
+      `;
+    }
+  }
+}
+
+function stopWebcam() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(track => track.stop());
+    webcamStream = null;
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('webcamVideo');
+  const canvas = document.getElementById('photoCanvas');
+
+  if (!video || !canvas) return null;
+
+  // Set canvas dimensions to match video
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+
+  // Draw video frame to canvas
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // Convert to base64
+  return canvas.toDataURL('image/jpeg', 0.8);
 }
 
 // ============================================
@@ -1050,6 +1122,13 @@ function createReceiptScreen() {
               <div style="font-size: 48px; font-weight: bold; margin: 8px 0; letter-spacing: 4px;">${state.customerNumber}</div>
             </div>
 
+            ${state.customerPhoto ? `
+              <div style="margin-bottom: 10px; text-align: center;">
+                <div style="font-weight: bold; font-size: 10px; margin-bottom: 4px;">CUSTOMER ID PHOTO:</div>
+                <img src="${state.customerPhoto}" alt="Customer ID" style="width: 100%; max-width: 250px; height: auto; border: 2px solid #333; border-radius: 4px; margin: 0 auto; display: block;">
+              </div>
+            ` : ''}
+
             <div style="font-size: 11px; line-height: 1.3;">
               <div style="display: grid; gap: 4px; margin-bottom: 12px;">
                 <div><strong>Name:</strong> ${state.customerName}</div>
@@ -1087,8 +1166,12 @@ function createReceiptScreen() {
           </div>
         </div>
 
-        <div style="text-align: center; margin-top: 12px;">
-          <div style="font-size: 16px; font-weight: bold;">Returning to start in <span id="countdown">10</span> seconds...</div>
+        <div style="text-align: center; margin-top: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+          <button class="btn btn--gradient-primary btn--large" id="printBtn" style="font-size: 16px; padding: 14px 32px;">
+            <span class="icon-printer" style="transform: scale(1.0);"></span>
+            <span>PRINT RECEIPTS</span>
+          </button>
+          <div style="font-size: 14px; color: var(--color-gray-600);">Returning to start in <span id="countdown">30</span> seconds...</div>
         </div>
       </main>
     </div>
@@ -1421,25 +1504,45 @@ function attachEventListeners() {
   // ==================== PHOTO SCREEN ====================
   const captureBtn = document.getElementById('captureBtn');
   if (captureBtn) {
-    captureBtn.addEventListener('click', () => {
-      // TODO: Add webcam integration here
-      // For now, just simulate capture
-      state.customerPhoto = 'captured'; // Placeholder
-      state.currentScreen = 'processing';
-      render();
+    // Start webcam when photo screen loads
+    startWebcam();
 
-      // Auto-advance to receipt after 3 seconds
-      setTimeout(() => {
-        state.currentScreen = 'receipt';
+    captureBtn.addEventListener('click', () => {
+      // Capture photo from webcam
+      const photoData = capturePhoto();
+
+      if (photoData) {
+        state.customerPhoto = photoData;
+
+        // Stop webcam
+        stopWebcam();
+
+        // Advance to processing
+        state.currentScreen = 'processing';
         render();
-      }, 3000);
+
+        // Auto-advance to receipt after 3 seconds
+        setTimeout(() => {
+          state.currentScreen = 'receipt';
+          render();
+        }, 3000);
+      } else {
+        alert('Failed to capture photo. Please try again.');
+      }
     });
   }
 
   // ==================== RECEIPT SCREEN ====================
+  const printBtn = document.getElementById('printBtn');
+  if (printBtn) {
+    printBtn.addEventListener('click', () => {
+      window.print();
+    });
+  }
+
   const countdownEl = document.getElementById('countdown');
   if (countdownEl) {
-    let timeLeft = 10;
+    let timeLeft = 30;
     const countdownInterval = setInterval(() => {
       timeLeft--;
       if (countdownEl) countdownEl.textContent = timeLeft.toString();
