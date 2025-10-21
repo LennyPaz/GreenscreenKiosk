@@ -233,10 +233,21 @@ function restoreState(savedState) {
   state.backgroundCategory = savedState.backgroundCategory;
   state.deliveryMethod = savedState.deliveryMethod;
   state.printQuantity = savedState.printQuantity;
-  state.emailAddresses = savedState.emailAddresses || [];
+  // C6: Ensure email addresses are objects with IDs
+  state.emailAddresses = (savedState.emailAddresses || []).map(email =>
+    typeof email === 'string' ? { id: generateEmailId(), value: email } : email
+  );
   state.paymentMethod = savedState.paymentMethod;
   state.totalPrice = savedState.totalPrice;
   state.reviewedOnce = savedState.reviewedOnce;
+}
+
+// ============================================
+// EMAIL ID GENERATOR (C6)
+// ============================================
+let emailIdCounter = 0;
+function generateEmailId() {
+  return `email-${Date.now()}-${emailIdCounter++}`;
 }
 
 // ============================================
@@ -325,11 +336,12 @@ function attachKeyboardListeners() {
         input.value += key.toLowerCase();
       }
 
-      // Update state for email inputs
+      // Update state for email inputs (C6: Using unique IDs)
       if (input.classList.contains('email-input')) {
-        const index = parseInt(input.dataset.index);
-        if (!isNaN(index)) {
-          state.emailAddresses[index] = input.value;
+        const emailId = input.dataset.emailId;
+        const emailObj = state.emailAddresses.find(email => email.id === emailId);
+        if (emailObj) {
+          emailObj.value = input.value;
         }
       }
 
@@ -759,18 +771,23 @@ function createQuantityScreen() {
         <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
           <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 20px;">How many prints?</h1>
 
-          <!-- Quantity Grid -->
+          <!-- Quantity Grid (With Value Indicators) -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%; max-width: 900px; margin-bottom: 20px;">
             ${[1,2,3,4,5,6,7,8].map((num) => {
               const price = config?.printPricing?.[num] || (10 + (num-1) * 5);
               const perPrintPrice = (price / num).toFixed(2);
               const isSelected = state.printQuantity === num;
+              const basePrice = config?.printPricing?.[1] || 10;
+              const savings = ((basePrice * num) - price).toFixed(2);
+              const isBestValue = num >= 5; // 5+ prints is best value
+
               return `
                 <button class="quantity-btn" data-quantity="${num}" data-type="print"
-                        style="height: 140px; border-radius: 12px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
+                        style="position: relative; height: 140px; border-radius: 12px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
                         background: ${isSelected ? 'var(--gradient-success)' : 'white'}; padding: 16px; cursor: pointer; transition: all 0.2s;
                         box-shadow: ${isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                         display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                  ${isBestValue && !isSelected ? '<div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: bold; box-shadow: var(--shadow-md); white-space: nowrap;">SAVE $' + savings + '</div>' : ''}
                   <div style="font-size: 48px; font-weight: bold; line-height: 1; color: ${isSelected ? 'white' : 'var(--color-gray-900)'}; margin-bottom: 8px;">${num}</div>
                   <div style="width: 60%; height: 2px; background: ${isSelected ? 'rgba(255,255,255,0.4)' : 'var(--color-border)'}; margin-bottom: 8px;"></div>
                   <div style="font-size: 24px; font-weight: bold; color: ${isSelected ? 'white' : 'var(--color-success)'}; line-height: 1; margin-bottom: 4px;">$${price.toFixed(2)}</div>
@@ -809,9 +826,9 @@ function createQuantityScreen() {
 // SCREEN 7: EMAIL ENTRY - REDESIGNED
 // ============================================
 function createEmailScreen() {
-  // Ensure we have at least one email slot
+  // Ensure we have at least one email slot (C6: With unique ID)
   if (state.emailAddresses.length === 0) {
-    state.emailAddresses = [''];
+    state.emailAddresses = [{ id: generateEmailId(), value: '' }];
   }
 
   const config = state.config;
@@ -834,22 +851,22 @@ function createEmailScreen() {
       <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
         <!-- LEFT: Keyboard & Inputs (KEYBOARD AT BOTTOM) -->
         <div style="display: grid; grid-template-rows: 1fr auto; gap: 12px; min-height: 0;">
-          <!-- Email Inputs (TAKES AVAILABLE SPACE - scrollable) -->
+          <!-- Email Inputs (C6: Using unique IDs) -->
           <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px; min-height: 200px;">
-            ${state.emailAddresses.map((email, i) => `
+            ${state.emailAddresses.map((emailObj, i) => `
               <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
                 <input
                   type="text"
                   class="input email-input"
-                  id="email-${i}"
-                  data-index="${i}"
+                  id="${emailObj.id}"
+                  data-email-id="${emailObj.id}"
                   placeholder="email@example.com"
-                  value="${email || ''}"
+                  value="${emailObj.value || ''}"
                   style="flex: 1; font-size: 18px; padding: 14px; border: 3px solid var(--color-border); border-radius: 10px;"
                 >
                 ${state.emailAddresses.length > 1 ? `
-                  <button class="btn btn--danger btn--small remove-email-btn" data-index="${i}" style="min-width: 44px; min-height: 44px; padding: 8px; font-size: 18px; border-radius: 10px;">
+                  <button class="btn btn--danger btn--small remove-email-btn" data-email-id="${emailObj.id}" style="min-width: 44px; min-height: 44px; padding: 8px; font-size: 18px; border-radius: 10px;">
                     ✕
                   </button>
                 ` : ''}
@@ -869,7 +886,7 @@ function createEmailScreen() {
 
           <!-- Keyboard (FIXED IN REMAINING SPACE) -->
           <div style="display: flex; flex-direction: column; min-height: 0;">
-            ${createKeyboard('email-0', true)}
+            ${createKeyboard(state.emailAddresses[0]?.id || 'email-0', true)}
           </div>
         </div>
 
@@ -1457,7 +1474,7 @@ function createReceiptScreen() {
               ${state.emailAddresses.length > 0 ? `
                 <div style="border: 1px solid #999; padding: 6px; margin-bottom: 10px; font-size: 9px;">
                   <div style="font-weight: bold;">Email Addresses:</div>
-                  ${state.emailAddresses.map((email, i) => `<div>${i + 1}. ${email || '(blank)'}</div>`).join('')}
+                  ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
                 </div>
               ` : ''}
 
@@ -1628,12 +1645,22 @@ function render() {
       html = createAttractScreen();
   }
 
-  // NO FLASHBANG - instant render
-  app.innerHTML = html;
-  attachEventListeners();
+  // SMOOTH TRANSITIONS: Fade out, change content, fade in
+  app.style.opacity = '0';
+  app.style.transition = 'opacity 0.2s ease-out';
 
-  // AUTO-SAVE: Persist state after render (T1)
-  saveState();
+  setTimeout(() => {
+    app.innerHTML = html;
+    attachEventListeners();
+
+    // Fade in
+    setTimeout(() => {
+      app.style.opacity = '1';
+    }, 10);
+
+    // AUTO-SAVE: Persist state after render (T1)
+    saveState();
+  }, 200);
 }
 
 // ============================================
@@ -1706,7 +1733,7 @@ function attachEventListeners() {
       // Update state
       state.deliveryMethod = btn.dataset.method;
 
-      // Reset quantities when delivery method changes
+      // Reset quantities when delivery method changes (C6: Clear email objects)
       if (state.deliveryMethod === 'print') {
         state.emailAddresses = [];
       } else if (state.deliveryMethod === 'email') {
@@ -1754,12 +1781,15 @@ function attachEventListeners() {
     });
   });
 
-  // ==================== EMAIL ENTRY ====================
+  // ==================== EMAIL ENTRY (C6: Updated for unique IDs) ====================
   const emailInputs = document.querySelectorAll('.email-input');
   emailInputs.forEach(input => {
     input.addEventListener('input', (e) => {
-      const index = parseInt(e.target.dataset.index);
-      state.emailAddresses[index] = e.target.value;
+      const emailId = e.target.dataset.emailId;
+      const emailObj = state.emailAddresses.find(email => email.id === emailId);
+      if (emailObj) {
+        emailObj.value = e.target.value;
+      }
     });
   });
 
@@ -1767,7 +1797,7 @@ function attachEventListeners() {
   const addEmailBtn = document.getElementById('addEmailBtn');
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
-      state.emailAddresses.push('');
+      state.emailAddresses.push({ id: generateEmailId(), value: '' });
       render();
     });
   }
@@ -1778,9 +1808,9 @@ function attachEventListeners() {
       const currentEmail = e.target.value.trim().toLowerCase();
       if (!currentEmail) return;
 
-      const currentIndex = parseInt(e.target.dataset.index);
-      const hasDuplicate = state.emailAddresses.some((email, index) =>
-        index !== currentIndex && email.trim().toLowerCase() === currentEmail
+      const currentEmailId = e.target.dataset.emailId;
+      const hasDuplicate = state.emailAddresses.some(emailObj =>
+        emailObj.id !== currentEmailId && emailObj.value.trim().toLowerCase() === currentEmail
       );
 
       if (hasDuplicate) {
@@ -1807,8 +1837,8 @@ function attachEventListeners() {
   const removeEmailBtns = document.querySelectorAll('.remove-email-btn');
   removeEmailBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const index = parseInt(btn.dataset.index);
-      state.emailAddresses.splice(index, 1);
+      const emailId = btn.dataset.emailId;
+      state.emailAddresses = state.emailAddresses.filter(email => email.id !== emailId);
       render();
     });
   });
@@ -1833,8 +1863,8 @@ function attachEventListeners() {
     });
   }
 
-  // AUTO-FOCUS: Email inputs (M7)
-  const firstEmailInput = document.getElementById('email-0');
+  // AUTO-FOCUS: Email inputs (M7) (C6: Using unique ID)
+  const firstEmailInput = document.getElementById(state.emailAddresses[0]?.id);
   if (firstEmailInput) {
     setTimeout(() => firstEmailInput.focus(), 100);
   }
@@ -2088,6 +2118,49 @@ function attachEventListeners() {
 }
 
 // ============================================
+// KEYBOARD SHORTCUTS
+// ============================================
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ignore if typing in an input field
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    // ESC: Go back
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      const backBtn = document.getElementById('backBtn');
+      if (backBtn && !backBtn.disabled) {
+        backBtn.click();
+      }
+    }
+
+    // ENTER: Continue/Next
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const nextBtn = document.getElementById('nextBtn');
+      const confirmBtn = document.getElementById('confirmBtn');
+      const usePhotoBtn = document.getElementById('usePhotoBtn');
+
+      if (nextBtn && !nextBtn.disabled) {
+        nextBtn.click();
+      } else if (confirmBtn && !confirmBtn.disabled) {
+        confirmBtn.click();
+      } else if (usePhotoBtn && !usePhotoBtn.disabled) {
+        usePhotoBtn.click();
+      }
+    }
+
+    // CTRL/CMD + R: Refresh warning (override default)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+      e.preventDefault();
+      showStartOverModal();
+    }
+  });
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 async function init() {
@@ -2096,6 +2169,9 @@ async function init() {
   // Load config
   state.config = await loadConfig();
   console.log('[CONFIG] Loaded successfully:', state.config);
+
+  // Setup keyboard shortcuts
+  setupKeyboardShortcuts();
 
   // CHECK FOR SAVED STATE (T1)
   const savedState = loadState();
