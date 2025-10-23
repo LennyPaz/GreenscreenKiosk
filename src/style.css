@@ -180,8 +180,8 @@
      LAYOUT
      ============================================ */
   --header-height: 45px;
-  --footer-height: 100px;
-  --progress-bar-height: 40px;
+  --footer-height: 80px; /* INCREASED for progress navigation buttons */
+  --progress-bar-height: 80px;
 }
 
 /* ============================================
@@ -654,7 +654,7 @@ input, button, textarea, select {
   border: 5px solid var(--color-success);
   color: var(--color-white);
   box-shadow: 0 0 0 6px rgba(76, 175, 80, 0.4), var(--shadow-xl);
-  transform: scale(1.05);
+  transform: none; /* FIX: Remove scale to prevent cutoff */
   font-weight: var(--font-bold);
 }
 
@@ -714,7 +714,7 @@ input, button, textarea, select {
 .card--selected {
   border: 5px solid var(--color-success);
   box-shadow: 0 0 0 6px rgba(76, 175, 80, 0.4), var(--shadow-2xl);
-  transform: scale(1.05);
+  transform: none; /* FIX: Remove scale to prevent cutoff */
   position: relative;
 }
 
@@ -880,13 +880,13 @@ input, button, textarea, select {
   height: 16px;
   border-radius: var(--radius-full);
   background: var(--color-gray-300);
-  transition: all var(--transition-base);
+  transition: none; /* FIX: Remove animations per user request */
 }
 
-/* Batch 7: Animated progress dots */
+/* Batch 7: Animated progress dots - ANIMATIONS REMOVED */
 .progress__dot--complete {
   background: var(--color-success);
-  animation: progressPop 0.3s ease-out;
+  /* animation: progressPop 0.3s ease-out; REMOVED */
 }
 
 .progress__dot--current {
@@ -894,7 +894,26 @@ input, button, textarea, select {
   width: 24px;
   height: 24px;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
-  animation: progressPulse 0.4s ease-out;
+  /* animation: progressPulse 0.4s ease-out; REMOVED */
+}
+
+/* Clickable progress steps */
+.progress__step {
+  transition: none; /* REMOVED animations */
+}
+
+.progress__step[style*="cursor: pointer"]:hover .progress__dot {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3);
+}
+
+.progress__step[style*="cursor: pointer"]:hover div:last-child {
+  color: var(--color-success) !important;
+  font-weight: 700 !important;
+}
+
+.progress__step[style*="cursor: pointer"]:active .progress__dot {
+  transform: scale(1.1);
 }
 
 @keyframes progressPop {
@@ -1031,6 +1050,28 @@ input, button, textarea, select {
   background: #0288d1;
 }
 
+.keyboard__key--caps {
+  background: var(--color-gray-600);
+  font-weight: var(--font-semibold);
+  transition: all var(--transition-base);
+}
+
+.keyboard__key--caps:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+.keyboard__key--shift {
+  background: var(--color-gray-600);
+  font-weight: var(--font-semibold);
+  transition: all var(--transition-base);
+}
+
+.keyboard__key--shift:hover {
+  background: var(--color-warning);
+  color: white;
+}
+
 /* Price Tracker */
 .price-tracker {
   position: fixed;
@@ -1044,18 +1085,23 @@ input, button, textarea, select {
   z-index: 1000;
   min-width: 200px;
   text-align: center;
-  animation: slideInRight 0.3s ease-out;
+  /* FIX: Disable initial slide-in animation, keep tracker static */
+  /* animation: slideInRight 0.3s ease-out; */
 }
 
 .price-tracker__label {
   font-size: var(--text-sm);
   opacity: 0.9;
   margin-bottom: var(--space-xs);
+  /* FIX: No animation on text changes */
+  transition: none;
 }
 
 .price-tracker__amount {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
+  /* FIX: Remove number animation when price changes */
+  transition: none;
 }
 
 @keyframes slideInRight {
@@ -1111,6 +1157,11 @@ input, button, textarea, select {
   text-align: center;
   font-size: 14px;
   font-weight: 600;
+  /* FIX: Ensure header title is properly centered */
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .screen__body {

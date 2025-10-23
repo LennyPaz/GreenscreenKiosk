@@ -156,7 +156,7 @@ function createPricePreviewBadge() {
   if (!state.deliveryMethod) return '';
 
   return `
-    <div id="pricePreviewContainer" style="position: fixed; bottom: 80px; right: 20px; z-index: 90;">
+    <div id="pricePreviewContainer" style="position: fixed; bottom: 100px; right: 20px; z-index: 90;">
       <div style="background: var(--gradient-success); padding: 16px 24px; border-radius: 16px; box-shadow: var(--shadow-2xl); display: flex; flex-direction: column; align-items: center; animation: slideUp 0.3s ease-out;">
         <div style="font-size: 12px; color: rgba(255,255,255,0.9); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px;">CURRENT TOTAL</div>
         <div id="pricePreview" style="font-size: 36px; font-weight: bold; color: white; line-height: 1;">$${currentPrice.toFixed(2)}</div>
@@ -260,12 +260,101 @@ function insertComponent(fragment, componentName, component) {
 // ============================================
 // CUSTOMER NUMBER GENERATOR
 // ============================================
+/**
+ * Generate a unique customer ID using timestamp + random string
+ * Format: GS-YYYYMMDD-XXXX
+ * Example: GS-20251022-A3K9
+ *
+ * This ensures:
+ * - No collisions even if localStorage is cleared
+ * - Works across multiple devices/kiosks
+ * - Easy to read on receipts
+ * - Sortable by date
+ */
 function generateCustomerNumber() {
-  const stored = localStorage.getItem('customerNumberCounter');
-  let counter = stored ? parseInt(stored) : 600;
-  counter++;
-  localStorage.setItem('customerNumberCounter', counter.toString());
-  return counter;
+  // Get current date in YYYYMMDD format
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateStr = `${year}${month}${day}`;
+
+  // Generate random 4-character alphanumeric string
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars (0, O, I, 1)
+  let random = '';
+  for (let i = 0; i < 4; i++) {
+    random += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+
+  const customerId = `GS-${dateStr}-${random}`;
+
+  // Store in localStorage for reference (optional - for tracking/debugging)
+  try {
+    const existingIds = JSON.parse(localStorage.getItem('generatedCustomerIds') || '[]');
+    existingIds.push({ id: customerId, timestamp: now.toISOString() });
+
+    // Keep only last 100 IDs to prevent localStorage bloat
+    if (existingIds.length > 100) {
+      existingIds.shift();
+    }
+
+    localStorage.setItem('generatedCustomerIds', JSON.stringify(existingIds));
+  } catch (error) {
+    console.warn('Could not store customer ID history:', error);
+  }
+
+  return customerId;
+}
+
+async function submitOrderToAPI() {
+  try {
+    // Prepare order data
+    const orderData = {
+      customerNumber: state.customerNumber,
+      customerName: state.customerName,
+      partySize: state.partySize,
+      customerPhoto: state.customerPhoto, // Base64 image
+      selectedBackground: state.selectedBackground,
+      backgroundId: state.selectedBackground,
+      backgroundName: state.backgroundName,
+      deliveryMethod: state.deliveryMethod,
+      printQuantity: state.printQuantity,
+      emailAddresses: state.emailAddresses.map(e => typeof e === 'object' ? e.value : e), // Extract values
+      paymentMethod: state.paymentMethod,
+      totalPrice: state.totalPrice,
+      eventName: state.config?.eventName || null,
+      eventDate: new Date().toISOString().split('T')[0]
+    };
+
+    console.log('Submitting order to API...', orderData);
+
+    // Submit to backend
+    const response = await fetch('http://localhost:5000/api/transactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(orderData)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create transaction');
+    }
+
+    console.log('Order submitted successfully:', result);
+    return result;
+
+  } catch (error) {
+    console.error('Error submitting order:', error);
+    throw error;
+  }
 }
 
 // ============================================
@@ -356,6 +445,10 @@ function generateEmailId() {
 // ============================================
 // ON-SCREEN KEYBOARD
 // ============================================
+// Track caps lock and shift state globally for keyboard
+let capsLockEnabled = false;
+let shiftEnabled = false;
+
 function createKeyboard(inputId, includeEmailShortcuts = false) {
   const keys = includeEmailShortcuts ? [
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -363,13 +456,13 @@ function createKeyboard(inputId, includeEmailShortcuts = false) {
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '@', '.', '-', '_'],
     ['@GMAIL', '@YAHOO', '@HOTMAIL', '@OUTLOOK'],
-    ['SPACE', 'DELETE', 'DONE']
+    ['SHIFT', 'CAPS', 'SPACE', 'DELETE']
   ] : [
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '-', "'", '.', 'COM'],
-    ['SPACE', 'DELETE', 'DONE']
+    ['SHIFT', 'CAPS', 'SPACE', 'DELETE']
   ];
 
   let html = '<div class="keyboard">';
@@ -380,13 +473,15 @@ function createKeyboard(inputId, includeEmailShortcuts = false) {
       const classes = ['keyboard__key'];
       if (key === 'SPACE') classes.push('keyboard__key--space');
       if (key === 'DELETE') classes.push('keyboard__key--delete', 'keyboard__key--wide');
-      if (key === 'DONE') classes.push('keyboard__key--wide');
+      if (key === 'CAPS') classes.push('keyboard__key--caps', 'keyboard__key--wide');
+      if (key === 'SHIFT') classes.push('keyboard__key--shift', 'keyboard__key--wide');
       if (key.startsWith('@')) classes.push('keyboard__key--shortcut');
 
       const displayText = {
         'SPACE': 'Space',
         'DELETE': '⌫ Delete',
-        'DONE': '✓ Done',
+        'CAPS': '⇪ CAPS',
+        'SHIFT': '⇧ Shift',
         '@GMAIL': '@gmail.com',
         '@YAHOO': '@yahoo.com',
         '@HOTMAIL': '@hotmail.com',
@@ -416,12 +511,43 @@ function attachKeyboardListeners() {
 
       if (!input) return;
 
-      if (key === 'DONE') {
-        // Trigger the next button click (simulates Enter key)
-        const nextBtn = document.getElementById('nextBtn');
-        if (nextBtn && !nextBtn.disabled) {
-          nextBtn.click();
+      if (key === 'SHIFT') {
+        // Enable shift for next letter only
+        shiftEnabled = true;
+        // Update visual state of SHIFT button
+        const shiftButtons = document.querySelectorAll('.keyboard__key--shift');
+        shiftButtons.forEach(shiftBtn => {
+          shiftBtn.style.background = 'var(--color-warning)';
+          shiftBtn.style.color = 'white';
+          shiftBtn.style.fontWeight = 'bold';
+        });
+        return;
+      } else if (key === 'CAPS') {
+        // Toggle caps lock (disable shift if active)
+        capsLockEnabled = !capsLockEnabled;
+        if (capsLockEnabled) {
+          shiftEnabled = false;
+          // Clear shift visual state
+          const shiftButtons = document.querySelectorAll('.keyboard__key--shift');
+          shiftButtons.forEach(shiftBtn => {
+            shiftBtn.style.background = '';
+            shiftBtn.style.color = '';
+            shiftBtn.style.fontWeight = '';
+          });
         }
+        // Update visual state of CAPS button
+        const capsButtons = document.querySelectorAll('.keyboard__key--caps');
+        capsButtons.forEach(capsBtn => {
+          if (capsLockEnabled) {
+            capsBtn.style.background = 'var(--color-primary)';
+            capsBtn.style.color = 'white';
+            capsBtn.style.fontWeight = 'bold';
+          } else {
+            capsBtn.style.background = '';
+            capsBtn.style.color = '';
+            capsBtn.style.fontWeight = '';
+          }
+        });
         return;
       } else if (key === 'DELETE') {
         input.value = input.value.slice(0, -1);
@@ -438,10 +564,27 @@ function attachKeyboardListeners() {
       } else if (key === '@OUTLOOK') {
         input.value += '@outlook.com';
       } else if (key) {
-        // Keep numbers and symbols as-is, lowercase letters only
+        // Keep numbers and symbols as-is, apply caps lock or shift to letters
         const isNumber = /^[0-9]$/.test(key);
         const isSymbol = /^[-_'@.]$/.test(key);
-        input.value += (isNumber || isSymbol) ? key : key.toLowerCase();
+        if (isNumber || isSymbol) {
+          input.value += key;
+        } else {
+          // Use uppercase if either shift or caps lock is enabled
+          const shouldCapitalize = shiftEnabled || capsLockEnabled;
+          input.value += shouldCapitalize ? key.toUpperCase() : key.toLowerCase();
+
+          // Clear shift after using it (single-use)
+          if (shiftEnabled) {
+            shiftEnabled = false;
+            const shiftButtons = document.querySelectorAll('.keyboard__key--shift');
+            shiftButtons.forEach(shiftBtn => {
+              shiftBtn.style.background = '';
+              shiftBtn.style.color = '';
+              shiftBtn.style.fontWeight = '';
+            });
+          }
+        }
       }
 
       // Update state for email inputs (C6: Using unique IDs)
@@ -492,14 +635,59 @@ function createPriceTracker() {
 // PROGRESS BAR
 // ============================================
 function createProgressBar(currentStep, totalSteps) {
+  // Step labels for navigation
+  const stepLabels = [
+    { step: 1, label: 'Background', screen: 'background' },
+    { step: 2, label: 'Party Size', screen: 'partySize' },
+    { step: 3, label: 'Delivery', screen: 'delivery' },
+    { step: 4, label: 'Quantity', screen: 'quantity' },
+    { step: 5, label: 'Quantity', screen: 'quantity' },     // Duplicate step for quantity (print/email)
+    { step: 6, label: 'Email', screen: 'email' },
+    { step: 7, label: 'Name', screen: 'name' },
+    { step: 8, label: 'Review', screen: 'review' },
+    { step: 9, label: 'Payment', screen: 'payment' },
+    { step: 10, label: 'Photo', screen: 'photo' },
+    { step: 11, label: 'Complete', screen: 'receipt' }
+  ];
+
   let dots = '';
   for (let i = 1; i <= totalSteps; i++) {
     let className = 'progress__dot';
+    // FIX: Make all visited steps clickable (after background page which is step 1)
+    // On background page (currentStep === 1), nothing is clickable
+    // After background (currentStep >= 2), all visited steps including current are clickable
+    let isClickable = currentStep >= 2 && i <= currentStep;
+
     if (i < currentStep) className += ' progress__dot--complete';
     else if (i === currentStep) className += ' progress__dot--current';
-    dots += `<div class="${className}"></div>`;
+
+    const stepInfo = stepLabels.find(s => s.step === i);
+    const label = stepInfo ? stepInfo.label : `Step ${i}`;
+    const targetScreen = stepInfo ? stepInfo.screen : '';
+
+    // Make all visited steps clickable after background page
+    if (isClickable) {
+      dots += `
+        <div class="progress__step" data-screen="${targetScreen}" style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 0 4px;">
+          <div class="${className}" title="${label}"></div>
+          <div style="font-size: 9px; margin-top: 2px; color: var(--color-gray-600); font-weight: 500; white-space: nowrap;">${label}</div>
+        </div>
+      `;
+    } else {
+      dots += `
+        <div class="progress__step" style="display: flex; flex-direction: column; align-items: center; padding: 0 4px;">
+          <div class="${className}" title="${label}"></div>
+          <div style="font-size: 9px; margin-top: 2px; color: ${i === currentStep ? 'var(--color-primary)' : 'var(--color-gray-400)'}; font-weight: ${i === currentStep ? '700' : '500'}; white-space: nowrap;">${label}</div>
+        </div>
+      `;
+    }
   }
-  return `<footer class="progress">${dots}</footer>`;
+
+  return `<footer class="progress" style="padding: 10px 16px;">
+    <div style="display: flex; justify-content: center; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+      ${dots}
+    </div>
+  </footer>`;
 }
 
 // ============================================
@@ -519,22 +707,32 @@ function createAttractScreen() {
 
   // Insert dynamic pricing
   const pricingHTML = config?.features?.freeMode
-    ? `<div style="background: var(--gradient-success); padding: 24px 48px; border-radius: 16px; display: inline-block; box-shadow: var(--shadow-2xl);">
-        <p style="font-size: 42px; font-weight: bold; color: white; margin: 0;">🎉 FREE TODAY! 🎉</p>
+    ? `<div style="background: var(--gradient-success); padding: 40px 80px; border-radius: 24px; display: inline-block; box-shadow: var(--shadow-2xl); animation: bounce 2s ease-in-out infinite;">
+        <p style="font-size: 72px; font-weight: bold; color: white; margin: 0;">🎉 FREE TODAY! 🎉</p>
       </div>`
-    : `<div style="background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 32px; border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
-        <div style="font-size: 24px; font-weight: 600; color: white; margin-bottom: 20px;">PRICING</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 700px; margin: 0 auto;">
-          <div>
-            <div style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">Prints Start At</div>
-            <div style="font-size: 52px; font-weight: bold; color: white;">$${config?.basePrice?.toFixed(2) || '10.00'}</div>
+    : `<div style="background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 100%); backdrop-filter: blur(20px); padding: 48px 80px; border-radius: 28px; box-shadow: 0 12px 48px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.4); border: 2px solid rgba(255,255,255,0.3); max-width: 1100px; margin: 0 auto;">
+        <div style="font-size: 36px; font-weight: 800; color: white; margin-bottom: 32px; letter-spacing: 3px; text-shadow: 0 2px 10px rgba(0,0,0,0.3);">💰 PRICING 💰</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 60px; max-width: 1000px; margin: 0 auto;">
+          <div style="text-align: center; animation: fadeInUp 0.8s ease-out;">
+            <div style="font-size: 32px; color: rgba(255,255,255,0.95); margin-bottom: 16px; font-weight: 600; text-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap;">📸 Prints Start At</div>
+            <div style="font-size: 96px; font-weight: 900; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 40px rgba(255,255,255,0.3); animation: priceGlow 3s ease-in-out infinite;">$${config?.basePrice?.toFixed(2) || '10.00'}</div>
           </div>
-          <div>
-            <div style="font-size: 18px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">Email Delivery</div>
-            <div style="font-size: 52px; font-weight: bold; color: white;">$${config?.emailPricing?.[1]?.toFixed(2) || '10.00'}</div>
+          <div style="text-align: center; animation: fadeInUp 0.8s ease-out 0.2s; animation-fill-mode: both;">
+            <div style="font-size: 32px; color: rgba(255,255,255,0.95); margin-bottom: 16px; font-weight: 600; text-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap;">📧 Email Delivery</div>
+            <div style="font-size: 96px; font-weight: 900; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 40px rgba(255,255,255,0.3); animation: priceGlow 3s ease-in-out infinite 1.5s;">$${config?.emailPricing?.[1]?.toFixed(2) || '10.00'}</div>
           </div>
         </div>
-      </div>`;
+      </div>
+      <style>
+        @keyframes priceGlow {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.02); filter: brightness(1.1); }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      </style>`;
 
   insertDynamic(fragment, 'pricing', pricingHTML);
 
@@ -606,13 +804,13 @@ function createBackgroundScreen() {
   return `
     <div class="screen">
       <!-- IMPROVED HEADER: Larger touch targets (MO1) -->
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Choose Background</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px; position: relative;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Choose Background</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
+      <main style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; max-height: calc(100vh - 80px - 50px);">
         <!-- TABS - LARGER FOR TOUCH -->
         <div style="display: flex; gap: 8px; padding: 10px 12px; background: var(--color-gray-100); border-bottom: 2px solid var(--color-border);">
           ${categories.map(cat => `
@@ -626,15 +824,15 @@ function createBackgroundScreen() {
           `).join('')}
         </div>
 
-        <!-- MAIN CONTENT AREA - LARGER PREVIEW -->
-        <div style="flex: 1; display: grid; grid-template-columns: 1fr 550px; gap: 12px; padding: 12px; overflow: hidden;">
-          <!-- LEFT: Background Grid (4 columns with loading indicators - MO9) -->
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; overflow-y: auto; align-content: start; padding-right: 8px;">
+        <!-- MAIN CONTENT AREA - LARGER PREVIEW, SMALLER GRID -->
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 700px; gap: 16px; padding: 12px; overflow: hidden;">
+          <!-- LEFT: Background Grid (4 columns, smaller thumbnails) -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; overflow-y: auto; align-content: start; padding-right: 8px;">
             ${filteredBackgrounds.map(bg => `
               <button class="background-btn ${state.selectedBackground === bg.id ? 'bg-selected' : ''}"
                       data-id="${bg.id}" data-name="${bg.name}"
-                      style="position: relative; border-radius: 10px; overflow: hidden; cursor: pointer;
-                      aspect-ratio: 4/3; min-height: 140px;
+                      style="position: relative; border-radius: 8px; overflow: hidden; cursor: pointer;
+                      aspect-ratio: 4/3; min-height: 110px;
                       border: ${state.selectedBackground === bg.id ? '4px solid var(--color-success)' : '3px solid var(--color-border)'};
                       background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 2s infinite;
                       transition: all 0.2s;
@@ -643,20 +841,20 @@ function createBackgroundScreen() {
                 <div style="position: absolute; inset: 0; background: url('${bg.img}') center/cover; opacity: 0; transition: opacity 0.3s;" onload="this.style.opacity='1'"></div>
                 <img src="${bg.img}" style="display: none;" onload="this.previousElementSibling.style.opacity='1'">
 
-                <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5));">
-                  <div style="position: absolute; bottom: 8px; left: 8px; right: 8px;">
-                    <div style="color: white; font-size: 14px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
+                <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.6));">
+                  <div style="position: absolute; bottom: 6px; left: 6px; right: 6px;">
+                    <div style="color: white; font-size: 11px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${bg.name}</div>
                   </div>
                 </div>
-                ${state.selectedBackground === bg.id ? '<div style="position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: white; font-weight: bold;">✓</div>' : ''}
+                ${state.selectedBackground === bg.id ? '<div style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.4);">✓</div>' : ''}
               </button>
             `).join('')}
           </div>
 
-          <!-- RIGHT: Preview & Actions -->
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <!-- Large Preview -->
-            <div class="background-preview-area" style="flex: 1;">
+          <!-- RIGHT: Preview & Actions (LARGER) -->
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Extra Large Preview - FIX: Reduced height to prevent footer overlap -->
+            <div class="background-preview-area" style="flex: 1; min-height: 320px; max-height: 630px;">
               ${state.selectedBackground && state.selectedBackground !== 'custom' ? (() => {
                 const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
                 return selectedBg ? `
@@ -684,22 +882,22 @@ function createBackgroundScreen() {
               `}
             </div>
 
-            <!-- Custom Background Option (D1: Improved explanation) -->
+            <!-- Custom Background Option - FIX: Better outline -->
             <button class="background-btn ${state.selectedBackground === 'custom' ? 'bg-selected' : ''}"
                     data-id="custom" data-name="Custom"
-                    style="height: 80px; background: var(--gradient-secondary); border-radius: 8px; border: ${state.selectedBackground === 'custom' ? '4px solid var(--color-success)' : '3px solid transparent'}; cursor: pointer; transition: all 0.2s; box-shadow: ${state.selectedBackground === 'custom' ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'}; padding: 12px;">
-              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white;">
-                <div style="display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 16px;">
-                  <span style="font-size: 20px;">★</span>
+                    style="height: 80px; background: var(--gradient-secondary); border-radius: 8px; border: ${state.selectedBackground === 'custom' ? '4px solid var(--color-success)' : '4px solid rgba(255,255,255,0.3)'}; cursor: pointer; transition: none; box-shadow: ${state.selectedBackground === 'custom' ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'}; padding: 14px 16px; display: flex; align-items: center; justify-content: center; transform: none;">
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: white; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 17px;">
+                  <span style="font-size: 22px;">★</span>
                   CUSTOM BACKGROUND
                 </div>
-                <div style="font-size: 11px; opacity: 0.9; text-align: center;">Request a specific background from the photographer</div>
+                <div style="font-size: 12px; opacity: 0.95; text-align: center; line-height: 1.3;">Request a specific background from the photographer</div>
               </div>
             </button>
 
-            <!-- Continue Button -->
+            <!-- Continue Button - FIX: Match Custom button height -->
             <button class="btn btn--gradient-success btn--large" id="nextBtn" ${!state.selectedBackground ? 'disabled' : ''}
-                    style="height: 56px; font-size: 17px; font-weight: bold; box-shadow: var(--shadow-lg);">
+                    style="width: 100%; height: 80px; font-size: 17px; font-weight: bold; box-shadow: var(--shadow-lg);">
               CONTINUE →
             </button>
           </div>
@@ -717,13 +915,13 @@ function createBackgroundScreen() {
 function createPartySizeScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Party Size</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px; position: relative;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Party Size</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; max-height: calc(100vh - 36px - 40px);">
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; max-height: calc(100vh - 80px - 50px);">
         <h1 style="font-size: 26px; font-weight: bold; margin-bottom: 20px; text-align: center;">How many people?</h1>
 
         <div style="width: 100%; max-width: 900px;">
@@ -776,28 +974,26 @@ function createDeliveryScreen() {
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Delivery Method</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px; position: relative;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Delivery Method</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 80px - 50px);">
         <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 24px;">How would you like your photos?</h1>
 
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 1200px; margin-bottom: 20px;">
           <!-- PRINT OPTION -->
           <button class="delivery-btn" data-method="print"
                   style="height: 360px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'print' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.deliveryMethod === 'print' ? 'var(--gradient-primary)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
+                  background: ${state.deliveryMethod === 'print' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                   box-shadow: ${state.deliveryMethod === 'print' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-            <div class="icon-printer" style="color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-primary)'}; transform: scale(1.5); margin-bottom: 16px;"></div>
-            <div style="font-size: 26px; font-weight: bold; margin-bottom: 12px; color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-gray-900)'};">PRINTED</div>
-            <div style="font-size: 14px; line-height: 1.5; color: ${state.deliveryMethod === 'print' ? 'rgba(255,255,255,0.95)' : 'var(--color-gray-600)'}; margin-bottom: 16px;">
-              • Physical 4x6 prints<br>
-              • Glossy finish<br>
-              • Take home tonight
+            <div class="icon-printer" style="color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-primary)'}; transform: scale(1.5); margin-bottom: 24px;"></div>
+            <div style="font-size: 32px; font-weight: 900; margin-bottom: 8px; color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-gray-900)'};">PRINTED</div>
+            <div style="font-size: 16px; line-height: 1.6; color: ${state.deliveryMethod === 'print' ? 'rgba(255,255,255,0.92)' : 'var(--color-gray-600)'}; margin-bottom: 20px; font-weight: 500; max-width: 280px;">
+              Professional 4x6 glossy prints ready to take home tonight
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-success)'};">
               $${printMin.toFixed(2)} - $${printMax.toFixed(2)}
@@ -807,15 +1003,13 @@ function createDeliveryScreen() {
           <!-- EMAIL OPTION -->
           <button class="delivery-btn" data-method="email"
                   style="height: 360px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'email' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.deliveryMethod === 'email' ? 'var(--gradient-ocean)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
+                  background: ${state.deliveryMethod === 'email' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                   box-shadow: ${state.deliveryMethod === 'email' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-            <div class="icon-envelope" style="color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-info)'}; transform: scale(1.5); margin-bottom: 16px;"></div>
-            <div style="font-size: 26px; font-weight: bold; margin-bottom: 12px; color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-gray-900)'};">EMAIL</div>
-            <div style="font-size: 14px; line-height: 1.5; color: ${state.deliveryMethod === 'email' ? 'rgba(255,255,255,0.95)' : 'var(--color-gray-600)'}; margin-bottom: 16px;">
-              • High-res digital copy<br>
-              • Instant delivery<br>
-              • Easy sharing
+            <div class="icon-envelope" style="color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-info)'}; transform: scale(1.8); margin-bottom: 20px;"></div>
+            <div style="font-size: 32px; font-weight: 900; margin-bottom: 8px; color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-gray-900)'};">EMAIL</div>
+            <div style="font-size: 16px; line-height: 1.6; color: ${state.deliveryMethod === 'email' ? 'rgba(255,255,255,0.92)' : 'var(--color-gray-600)'}; margin-bottom: 20px; font-weight: 500; max-width: 280px;">
+              High-resolution digital photos delivered instantly to your inbox. Easy to share!
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-success)'};">
               $${emailBase.toFixed(2)} - $${emailMax.toFixed(2)}
@@ -825,20 +1019,18 @@ function createDeliveryScreen() {
           <!-- BOTH OPTION (BEST VALUE) -->
           <button class="delivery-btn" data-method="both"
                   style="height: 360px; border-radius: 16px; border: 4px solid ${state.deliveryMethod === 'both' ? 'var(--color-success)' : 'var(--color-border)'};
-                  background: ${state.deliveryMethod === 'both' ? 'var(--gradient-purple)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s; position: relative;
+                  background: ${state.deliveryMethod === 'both' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s; position: relative;
                   box-shadow: ${state.deliveryMethod === 'both' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-2xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-            ${state.deliveryMethod !== 'both' ? '<div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: var(--shadow-lg);">⭐ BEST VALUE</div>' : ''}
+            <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: var(--shadow-lg);">⭐ BEST VALUE</div>
             <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
               <div class="icon-printer" style="color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-primary)'}; transform: scale(1.3);"></div>
               <div style="font-size: 24px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-700)'};">+</div>
               <div class="icon-envelope" style="color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-info)'}; transform: scale(1.3);"></div>
             </div>
-            <div style="font-size: 26px; font-weight: bold; margin-bottom: 12px; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-900)'};">BOTH</div>
-            <div style="font-size: 14px; line-height: 1.5; color: ${state.deliveryMethod === 'both' ? 'rgba(255,255,255,0.95)' : 'var(--color-gray-600)'}; margin-bottom: 16px;">
-              • Everything included<br>
-              • Physical + Digital<br>
-              • Best deal!
+            <div style="font-size: 32px; font-weight: 900; margin-bottom: 8px; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-900)'};">BOTH</div>
+            <div style="font-size: 16px; line-height: 1.6; color: ${state.deliveryMethod === 'both' ? 'rgba(255,255,255,0.92)' : 'var(--color-gray-600)'}; margin-bottom: 20px; font-weight: 500; max-width: 280px;">
+              Get the best of both worlds with physical prints and digital copies. Maximum value!
             </div>
             <div style="font-size: 22px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-success)'};">
               $${bothMin.toFixed(2)} - $${bothMax.toFixed(2)}
@@ -870,13 +1062,13 @@ function createQuantityScreen() {
   if (isPrintSelected) {
     return `
       <div class="screen">
-        <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-          <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-          <div style="font-size: 16px; font-weight: 600;">Print Quantity</div>
-          <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+        <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px;">
+          <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+          <div style="font-size: 24px; font-weight: 700;">Print Quantity</div>
+          <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
         </header>
 
-        <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 36px - 40px);">
+        <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; max-height: calc(100vh - 80px - 50px);">
           <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 20px;">How many prints?</h1>
 
           <!-- Quantity Grid (With Value Indicators) -->
@@ -892,14 +1084,14 @@ function createQuantityScreen() {
               return `
                 <button class="quantity-btn" data-quantity="${num}" data-type="print"
                         style="position: relative; height: 140px; border-radius: 12px; border: 4px solid ${isSelected ? 'var(--color-success)' : 'var(--color-border)'};
-                        background: ${isSelected ? 'var(--gradient-success)' : 'white'}; padding: 16px; cursor: pointer; transition: all 0.2s;
+                        background: ${isSelected ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'white'}; padding: 16px; cursor: pointer; transition: all 0.2s;
                         box-shadow: ${isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                         display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                  ${isBestValue && !isSelected ? '<div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: bold; box-shadow: var(--shadow-md); white-space: nowrap;">SAVE $' + savings + '</div>' : ''}
-                  <div style="font-size: 48px; font-weight: bold; line-height: 1; color: ${isSelected ? 'white' : 'var(--color-gray-900)'}; margin-bottom: 8px;">${num}</div>
-                  <div style="width: 60%; height: 2px; background: ${isSelected ? 'rgba(255,255,255,0.4)' : 'var(--color-border)'}; margin-bottom: 8px;"></div>
-                  <div style="font-size: 24px; font-weight: bold; color: ${isSelected ? 'white' : 'var(--color-success)'}; line-height: 1; margin-bottom: 4px;">$${price.toFixed(2)}</div>
-                  <div style="font-size: 11px; color: ${isSelected ? 'rgba(255,255,255,0.8)' : 'var(--color-gray-500)'};">$${perPrintPrice} each</div>
+                  ${isBestValue ? '<div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: bold; box-shadow: var(--shadow-md); white-space: nowrap;">SAVE $' + savings + '</div>' : ''}
+                  <div style="font-size: 48px; font-weight: bold; line-height: 1; color: ${isSelected ? 'white' : 'var(--color-gray-900)'}; margin-bottom: 8px; text-shadow: ${isSelected ? '0 2px 8px rgba(0,0,0,0.3)' : 'none'};">${num}</div>
+                  <div style="width: 60%; height: 2px; background: ${isSelected ? 'rgba(255,255,255,0.5)' : 'var(--color-border)'}; margin-bottom: 8px;"></div>
+                  <div style="font-size: 28px; font-weight: 900; color: ${isSelected ? 'white' : 'var(--color-success)'}; line-height: 1; margin-bottom: 4px; text-shadow: ${isSelected ? '0 2px 10px rgba(0,0,0,0.4)' : 'none'};">$${price.toFixed(2)}</div>
+                  <div style="font-size: 12px; font-weight: 600; color: ${isSelected ? 'rgba(255,255,255,0.95)' : 'var(--color-gray-500)'}; text-shadow: ${isSelected ? '0 1px 4px rgba(0,0,0,0.3)' : 'none'};">$${perPrintPrice} each</div>
                 </button>
               `;
             }).join('')}
@@ -957,43 +1149,46 @@ function createEmailScreen() {
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Email Addresses</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px; position: relative;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Email Addresses</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: grid; grid-template-columns: 65% 35%; gap: 16px; padding: 12px; overflow: hidden; max-height: calc(100vh - 36px - 40px);">
+      <main style="flex: 1; display: grid; grid-template-columns: 60% 40%; gap: 14px; padding: 12px; overflow: hidden; max-height: calc(100vh - 80px - 80px);">
         <!-- LEFT: Keyboard & Inputs (KEYBOARD AT BOTTOM) -->
         <div style="display: grid; grid-template-rows: 1fr auto; gap: 12px; min-height: 0;">
-          <!-- Email Inputs (C6: Using unique IDs) -->
-          <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--color-gray-50); border-radius: 10px; min-height: 200px;">
-            ${state.emailAddresses.map((emailObj, i) => `
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <span style="font-size: 22px; font-weight: bold; color: var(--color-primary); min-width: 40px;">${i + 1}.</span>
-                <input
-                  type="text"
-                  class="input email-input"
-                  id="${emailObj.id}"
-                  data-email-id="${emailObj.id}"
-                  placeholder="email@example.com"
-                  value="${emailObj.value || ''}"
-                  style="flex: 1; font-size: 18px; padding: 14px; border: 3px solid var(--color-border); border-radius: 10px;"
-                >
-                ${state.emailAddresses.length > 1 ? `
-                  <button class="btn btn--danger btn--small remove-email-btn" data-email-id="${emailObj.id}" style="min-width: 44px; min-height: 44px; padding: 8px; font-size: 18px; border-radius: 10px;">
-                    ✕
-                  </button>
-                ` : ''}
-              </div>
-            `).join('')}
+          <!-- Email Inputs (2-COLUMN LAYOUT) -->
+          <div class="email-list-container" style="overflow-y: auto; padding: 8px; background: var(--color-gray-50); border-radius: 10px; min-height: 200px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              ${state.emailAddresses.map((emailObj, i) => `
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span style="font-size: 18px; font-weight: bold; color: var(--color-primary); min-width: 32px;">${i + 1}.</span>
+                  <input
+                    type="text"
+                    class="input email-input"
+                    id="${emailObj.id}"
+                    data-email-id="${emailObj.id}"
+                    placeholder="email@example.com"
+                    value="${emailObj.value || ''}"
+                    style="flex: 1; font-size: 16px; padding: 12px; border: 3px solid var(--color-border); border-radius: 8px;"
+                  >
+                  ${state.emailAddresses.length > 1 ? `
+                    <button class="btn btn--danger btn--small remove-email-btn" data-email-id="${emailObj.id}" style="min-width: 40px; min-height: 40px; padding: 6px; font-size: 16px; border-radius: 8px;">
+                      ✕
+                    </button>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
 
+            <!-- Add Email Button (moved inside scroll container for more space) -->
             ${canAddMore ? `
-              <button class="btn btn--outline" id="addEmailBtn" style="width: 100%; height: 54px; font-size: 17px; font-weight: 700;">
+              <button class="btn btn--outline" id="addEmailBtn" style="width: 100%; height: 50px; font-size: 16px; font-weight: 700; margin-top: 10px;">
                 + ADD ANOTHER EMAIL (+$1)
               </button>
             ` : `
-              <div style="text-align: center; color: var(--color-warning); font-size: 15px; padding: 12px; background: rgba(255,193,7,0.15); border-radius: 10px; font-weight: 700;">
+              <div style="text-align: center; color: var(--color-warning); font-size: 14px; padding: 10px; background: rgba(255,193,7,0.15); border-radius: 8px; font-weight: 700; margin-top: 10px;">
                 Maximum ${maxEmails} email addresses
               </div>
             `}
@@ -1006,37 +1201,37 @@ function createEmailScreen() {
         </div>
 
         <!-- RIGHT: Summary & Continue (FIXED LAYOUT) -->
-        <div style="display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px;">
+        <div style="display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; padding-right: 12px;">
           <!-- Summary Card -->
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: var(--shadow-lg);">
-            <div style="font-size: 18px; font-weight: bold; margin-bottom: 16px;">Order Summary</div>
+            <div style="font-size: 22px; font-weight: bold; margin-bottom: 16px;">Order Summary</div>
 
             ${state.deliveryMethod === 'both' && state.printQuantity > 0 ? `
               <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                  <span style="font-size: 14px;">${state.printQuantity} Print${state.printQuantity > 1 ? 's' : ''}</span>
-                  <span style="font-size: 16px; font-weight: bold;">$${(config?.printPricing?.[state.printQuantity] || 0).toFixed(2)}</span>
+                  <span style="font-size: 20px;">${state.printQuantity} Print${state.printQuantity > 1 ? 's' : ''}</span>
+                  <span style="font-size: 22px; font-weight: bold;">$${(config?.printPricing?.[state.printQuantity] || 0).toFixed(2)}</span>
                 </div>
               </div>
             ` : ''}
 
             <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 14px;">${state.deliveryMethod === 'both' ? 'Email: ' : ''}Base price (1 email)</span>
-                <span style="font-size: 16px; font-weight: bold;">$${baseEmailPrice.toFixed(2)}</span>
+                <span style="font-size: 20px;">${state.deliveryMethod === 'both' ? 'Email: ' : ''}Base price (1 email)</span>
+                <span style="font-size: 22px; font-weight: bold;">$${baseEmailPrice.toFixed(2)}</span>
               </div>
               ${state.emailAddresses.length > 1 ? `
                 <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
-                  <span style="font-size: 14px;">+${state.emailAddresses.length - 1} additional</span>
-                  <span style="font-size: 16px; font-weight: bold;">+$${(state.emailAddresses.length - 1).toFixed(2)}</span>
+                  <span style="font-size: 20px;">+${state.emailAddresses.length - 1} additional</span>
+                  <span style="font-size: 22px; font-weight: bold;">+$${(state.emailAddresses.length - 1).toFixed(2)}</span>
                 </div>
               ` : ''}
             </div>
 
             <div style="border-top: 2px solid rgba(255,255,255,0.3); padding-top: 12px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 16px; font-weight: 600;">${state.deliveryMethod === 'both' ? 'Grand Total:' : 'Total:'}</span>
-                <span style="font-size: 32px; font-weight: bold;">$${totalEmailPrice.toFixed(2)}</span>
+                <span style="font-size: 22px; font-weight: 600;">${state.deliveryMethod === 'both' ? 'Grand Total:' : 'Total:'}</span>
+                <span style="font-size: 42px; font-weight: bold;">$${totalEmailPrice.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -1052,7 +1247,7 @@ function createEmailScreen() {
           <div></div>
 
           <!-- Continue Button (FIXED AT BOTTOM) -->
-          <button class="btn btn--gradient-success btn--large" id="nextBtn" style="width: 100%; height: 64px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg);">
+          <button class="btn btn--gradient-success btn--large" id="nextBtn" style="width: 100%; height: 70px; font-size: 17px; font-weight: bold; box-shadow: var(--shadow-lg);">
             CONTINUE →
           </button>
         </div>
@@ -1069,14 +1264,14 @@ function createEmailScreen() {
 function createNameScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Your Name</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Your Name</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; max-height: calc(100vh - 36px - 40px); overflow: hidden;">
-        <div style="width: 100%; max-width: 900px; display: flex; flex-direction: column; height: 100%; gap: 16px;">
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; max-height: calc(100vh - 80px - 80px); overflow: hidden;">
+        <div style="width: 100%; max-width: 900px; display: flex; flex-direction: column; height: 100%; gap: 12px;">
           <!-- Header Section -->
           <div style="text-align: center;">
             <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 8px;">What's your name?</h1>
@@ -1131,50 +1326,51 @@ function createReviewScreen() {
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Review Order</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Review Order</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 16px; padding: 16px; max-height: calc(100vh - 36px - 40px);">
+      <main style="flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 16px; padding: 16px; max-height: calc(100vh - 80px - 50px);">
         <!-- LEFT: Order Details -->
-        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: var(--shadow-md); overflow-y: auto;">
-          <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 20px; color: var(--color-gray-900);">Order Details</h2>
+        <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: var(--shadow-md); overflow-y: auto;">
+          <h2 style="font-size: 36px; font-weight: 900; margin-bottom: 12px; color: var(--color-gray-900);">Review your order carefully</h2>
+          <p style="font-size: 18px; color: var(--color-gray-600); margin-bottom: 24px;">You can edit any item below</p>
 
           <!-- Review Items -->
           <div style="display: grid; gap: 12px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: var(--color-gray-50); border-radius: 12px;">
               <div style="flex: 1;">
-                <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Background</div>
-                <div style="font-size: 14px; color: var(--color-gray-600);">${state.backgroundName || 'Not selected'}</div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--color-gray-800); margin-bottom: 6px;">Background</div>
+                <div style="font-size: 18px; color: var(--color-gray-600);">${state.backgroundName || 'Not selected'}</div>
               </div>
-              <button class="btn btn--outline btn--small edit-btn" data-screen="background" style="font-size: 13px; padding: 6px 12px;">Edit</button>
+              <button class="btn btn--outline btn--small edit-btn" data-screen="background" style="font-size: 16px; padding: 10px 20px; min-height: 50px;">Edit</button>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: var(--color-gray-50); border-radius: 12px;">
               <div style="flex: 1;">
-                <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Party Size</div>
-                <div style="font-size: 14px; color: var(--color-gray-600);">${state.partySize} ${state.partySize === 1 ? 'person' : 'people'}</div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--color-gray-800); margin-bottom: 6px;">Party Size</div>
+                <div style="font-size: 18px; color: var(--color-gray-600);">${state.partySize} ${state.partySize === 1 ? 'person' : 'people'}</div>
               </div>
-              <button class="btn btn--outline btn--small edit-btn" data-screen="partySize" style="font-size: 13px; padding: 6px 12px;">Edit</button>
+              <button class="btn btn--outline btn--small edit-btn" data-screen="partySize" style="font-size: 16px; padding: 10px 20px; min-height: 50px;">Edit</button>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: var(--color-gray-50); border-radius: 12px;">
               <div style="flex: 1;">
-                <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Delivery</div>
-                <div style="font-size: 14px; color: var(--color-gray-600);">${state.deliveryMethod === 'print' ? 'Printed' : state.deliveryMethod === 'email' ? 'Email' : 'Both'}</div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--color-gray-800); margin-bottom: 6px;">Delivery</div>
+                <div style="font-size: 18px; color: var(--color-gray-600);">${state.deliveryMethod === 'print' ? 'Printed' : state.deliveryMethod === 'email' ? 'Email' : 'Both'}</div>
               </div>
-              <button class="btn btn--outline btn--small edit-btn" data-screen="delivery" style="font-size: 13px; padding: 6px 12px;">Edit</button>
+              <button class="btn btn--outline btn--small edit-btn" data-screen="delivery" style="font-size: 16px; padding: 10px 20px; min-height: 50px;">Edit</button>
             </div>
 
             ${state.printQuantity > 0 ? `
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
                 <div style="flex: 1;">
                   <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Prints</div>
-                  <div style="font-size: 14px; color: var(--color-gray-600);">${state.printQuantity} ${state.printQuantity === 1 ? 'copy' : 'copies'} • $${printPrice.toFixed(2)}</div>
+                  <div style="font-size: 18px; color: var(--color-gray-600);">${state.printQuantity} ${state.printQuantity === 1 ? 'copy' : 'copies'} • $${printPrice.toFixed(2)}</div>
                 </div>
-                <button class="btn btn--outline btn--small edit-btn" data-screen="quantity" style="font-size: 13px; padding: 6px 12px;">Edit</button>
+                <button class="btn btn--outline btn--small edit-btn" data-screen="quantity" style="font-size: 16px; padding: 10px 20px; min-height: 50px;">Edit</button>
               </div>
             ` : ''}
 
@@ -1182,18 +1378,18 @@ function createReviewScreen() {
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
                 <div style="flex: 1;">
                   <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Emails</div>
-                  <div style="font-size: 14px; color: var(--color-gray-600);">${emailCount} ${emailCount === 1 ? 'recipient' : 'recipients'} • $${emailPrice.toFixed(2)}</div>
+                  <div style="font-size: 18px; color: var(--color-gray-600);">${emailCount} ${emailCount === 1 ? 'recipient' : 'recipients'} • $${emailPrice.toFixed(2)}</div>
                 </div>
-                <button class="btn btn--outline btn--small edit-btn" data-screen="email" style="font-size: 13px; padding: 6px 12px;">Edit</button>
+                <button class="btn btn--outline btn--small edit-btn" data-screen="email" style="font-size: 16px; padding: 10px 20px; min-height: 50px;">Edit</button>
               </div>
             ` : ''}
 
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--color-gray-50); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: var(--color-gray-50); border-radius: 12px;">
               <div style="flex: 1;">
-                <div style="font-size: 15px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 4px;">Name</div>
-                <div style="font-size: 14px; color: var(--color-gray-600);">${state.customerName || 'Not entered'}</div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--color-gray-800); margin-bottom: 6px;">Name</div>
+                <div style="font-size: 18px; color: var(--color-gray-600);">${state.customerName || 'Not entered'}</div>
               </div>
-              <button class="btn btn--outline btn--small edit-btn" data-screen="name" style="font-size: 13px; padding: 6px 12px;">Edit</button>
+              <button class="btn btn--outline btn--small edit-btn" data-screen="name" style="font-size: 16px; padding: 10px 20px; min-height: 50px;">Edit</button>
             </div>
           </div>
         </div>
@@ -1212,10 +1408,10 @@ function createReviewScreen() {
             LOOKS GOOD →
           </button>
 
-          <!-- Info Card -->
-          <div style="background: var(--color-gray-50); padding: 20px; border-radius: 12px; text-align: center;">
-            <div style="font-size: 14px; color: var(--color-gray-600); line-height: 1.6;">
-              Review your order carefully.<br>You can edit any item above.
+          <!-- Info Card - Simple text without button styling -->
+          <div style="background: transparent; padding: 16px; text-align: center;">
+            <div style="font-size: 14px; color: var(--color-gray-600); line-height: 1.6; font-weight: 500;">
+              💡 Click "Edit" next to any item to make changes
             </div>
           </div>
         </div>
@@ -1232,33 +1428,30 @@ function createReviewScreen() {
 function createPaymentScreen() {
   const config = state.config;
 
-  // Filter payment methods by config (D5)
+  // Filter payment methods by config (D5) + NEW DIGITAL OPTIONS
   const paymentMethods = [
     { id: 'cash', label: 'CASH', emoji: '💵', enabled: config?.features?.cash !== false },
-    { id: 'debit', label: 'DEBIT', emoji: '💳', enabled: true }, // Always available
-    { id: 'credit', label: 'CREDIT', emoji: '💳', enabled: config?.features?.creditCard !== false },
+    { id: 'debit', label: 'DEBIT CARD', emoji: '💳', enabled: true }, // Always available
+    { id: 'credit', label: 'CREDIT CARD', emoji: '💳', enabled: config?.features?.creditCard !== false },
+    { id: 'venmo', label: 'VENMO', emoji: '💸', enabled: true }, // Digital payment
+    { id: 'zelle', label: 'ZELLE', emoji: '⚡', enabled: true }, // Digital payment
+    { id: 'tap', label: 'TAP TO PAY', emoji: '📱', enabled: true }, // Contactless
     { id: 'check', label: 'CHECK', emoji: '🏦', enabled: config?.features?.check === true }
   ].filter(method => method.enabled);
 
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Payment Method</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Payment Method</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
-        <!-- Total Amount -->
-        <div style="background: var(--gradient-success); padding: 24px 48px; border-radius: 16px; margin-bottom: 40px; text-align: center; box-shadow: var(--shadow-xl);">
-          <div style="font-size: 18px; color: white; opacity: 0.95; margin-bottom: 8px;">Total Amount</div>
-          <div style="font-size: 56px; font-weight: bold; color: white; line-height: 1;">$${state.totalPrice.toFixed(2)}</div>
-        </div>
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 80px - 50px);">
+        <h1 style="font-size: 48px; font-weight: 900; margin-bottom: 32px; text-align: center; color: var(--color-gray-900);">How will you pay?</h1>
 
-        <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 32px; text-align: center;">How will you pay?</h1>
-
-        <!-- Payment Options (D5: Filtered by config) -->
-        <div style="display: grid; grid-template-columns: repeat(${Math.min(paymentMethods.length, 4)}, 1fr); gap: 16px; width: 100%; max-width: ${paymentMethods.length * 260}px; margin-bottom: 30px;">
+        <!-- Payment Options Grid (Multiple rows for more options) -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%; max-width: 1100px; margin-bottom: 30px;">
           ${paymentMethods.map((method, index) => {
             const gradients = ['var(--gradient-success)', 'var(--gradient-primary)', 'var(--gradient-ocean)', 'var(--gradient-secondary)'];
             const gradient = gradients[index % gradients.length];
@@ -1277,11 +1470,20 @@ function createPaymentScreen() {
           }).join('')}
         </div>
 
-        <!-- Continue Button -->
-        <button class="btn btn--gradient-primary btn--large" id="nextBtn" ${!state.paymentMethod ? 'disabled' : ''}
-                style="width: 100%; max-width: 600px; height: 70px; font-size: 20px; font-weight: bold; box-shadow: var(--shadow-lg);">
-          CONTINUE →
-        </button>
+        <!-- Total and Continue Section -->
+        <div style="display: flex; align-items: center; gap: 24px; width: 100%; max-width: 900px;">
+          <!-- Total Amount (Repositioned) -->
+          <div style="background: var(--gradient-success); padding: 20px 40px; border-radius: 16px; text-align: center; box-shadow: var(--shadow-lg);">
+            <div style="font-size: 16px; color: rgba(255,255,255,0.9); margin-bottom: 4px; font-weight: 600;">TOTAL</div>
+            <div style="font-size: 44px; font-weight: 900; color: white; line-height: 1;">$${state.totalPrice.toFixed(2)}</div>
+          </div>
+
+          <!-- Continue Button -->
+          <button class="btn btn--gradient-primary btn--large" id="nextBtn" ${!state.paymentMethod ? 'disabled' : ''}
+                  style="flex: 1; height: 80px; font-size: 22px; font-weight: 900; box-shadow: var(--shadow-lg);">
+            CONTINUE →
+          </button>
+        </div>
       </main>
 
       ${createProgressBar(9, state.totalSteps)}
@@ -1295,20 +1497,20 @@ function createPaymentScreen() {
 function createPhotoScreen() {
   return `
     <div class="screen">
-      <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
-        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">← Back</button>
-        <div style="font-size: 16px; font-weight: 600;">Customer ID Photo</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+      <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 80px; max-height: 80px;">
+        <button class="btn btn--ghost btn--small" id="backBtn" style="min-height: 60px; min-width: 140px; font-size: 20px; padding: 12px 20px; font-weight: 600;">← Back</button>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 700;">Customer ID Photo</div>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px);">
-        <div style="text-align: center; margin-bottom: 24px;">
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 80px - 80px);">
+        <div style="text-align: center; margin-bottom: 16px;">
           <h1 style="font-size: 38px; font-weight: bold; margin-bottom: 10px;">📸 Smile!</h1>
           <p style="font-size: 18px; color: var(--color-gray-600);">This helps us match you to your final photo</p>
         </div>
 
         <!-- Camera Preview -->
-        <div style="position: relative; width: 100%; max-width: 900px; aspect-ratio: 4/3; background: var(--color-gray-900); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-2xl); margin-bottom: 28px;">
+        <div style="position: relative; width: 100%; max-width: 900px; aspect-ratio: 4/3; background: var(--color-gray-900); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-2xl); margin-bottom: 16px;">
           <video id="webcamVideo" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; display: block;"></video>
           <canvas id="photoCanvas" style="display: none;"></canvas>
           <div id="webcamPlaceholder" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
@@ -1338,10 +1540,10 @@ function createPhotoConfirmScreen() {
       <header style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--color-border); min-height: 50px; max-height: 50px;">
         <div style="min-width: 80px;"></div>
         <div style="font-size: 16px; font-weight: 600;">Review Photo</div>
-        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 50px; font-size: 14px; padding: 8px 12px;">✕</button>
+        <button class="btn btn--danger btn--small" id="startOverBtn" style="min-height: 60px; min-width: 180px; font-size: 18px; padding: 12px 20px; font-weight: 600;">Start Over ✕</button>
       </header>
 
-      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 36px - 40px); gap: 20px;">
+      <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-height: calc(100vh - 80px - 50px); gap: 20px;">
         <div style="text-align: center;">
           <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 12px;">How does this look?</h1>
           <p style="font-size: 16px; color: var(--color-gray-600);">This photo helps us match you to your final photo</p>
@@ -1503,6 +1705,70 @@ function createProcessingScreen() {
     state.customerNumber = generateCustomerNumber();
   }
 
+  // Start submission process after a short delay
+  setTimeout(async () => {
+    try {
+      // Submit order to API
+      const result = await submitOrderToAPI();
+      
+      // Update status to show success
+      const statusContainer = document.getElementById('processingStatus');
+      if (statusContainer) {
+        statusContainer.innerHTML = `
+          <div style="background: rgba(16, 185, 129, 0.2); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl); border: 2px solid rgba(16, 185, 129, 0.4);">
+            <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">?</div>
+              <div class="text-xl" style="color: white;">Order details confirmed</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">?</div>
+              <div class="text-xl" style="color: white;">Customer number assigned</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">?</div>
+              <div class="text-xl" style="color: white;">Order submitted successfully!</div>
+            </div>
+          </div>
+        `;
+      }
+      
+      // Navigate to receipt after showing success
+      setTimeout(() => {
+        navigateTo('receipt');
+      }, 1500);
+      
+    } catch (error) {
+      // Show error state
+      const statusContainer = document.getElementById('processingStatus');
+      if (statusContainer) {
+        statusContainer.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.2); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl); border: 2px solid rgba(239, 68, 68, 0.4);">
+            <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
+              <div style="width: 32px; height: 32px; background: var(--color-error); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">?</div>
+              <div class="text-xl" style="color: white; font-weight: bold;">Error Submitting Order</div>
+            </div>
+            <div style="color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: var(--space-md);">
+              ${error.message}
+            </div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 12px; margin-bottom: var(--space-md);">
+              Please contact staff for assistance with order #${state.customerNumber}
+            </div>
+            <button class="btn btn--primary" onclick="window.location.reload()" style="margin-top: var(--space-md);">
+              Start New Order
+            </button>
+          </div>
+        `;
+      }
+      
+      // Log error for debugging
+      console.error('Order submission failed:', {
+        customerNumber: state.customerNumber,
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  }, 800);
+
   return `
     <div class="screen bg-gradient-primary">
       <main class="screen__body">
@@ -1512,18 +1778,20 @@ function createProcessingScreen() {
             <h1 class="text-3xl font-bold mb-md" style="color: white;">Finalizing Your Order...</h1>
           </div>
 
-          <div style="background: rgba(255,255,255,0.2); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl);">
-            <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
-              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">✓</div>
-              <div class="text-xl" style="color: white;">Order details confirmed</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
-              <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">✓</div>
-              <div class="text-xl" style="color: white;">Customer number assigned</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: var(--space-md);">
-              <div class="animate-spin" style="width: 32px; height: 32px; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%;"></div>
-              <div class="text-xl" style="color: white;">Preparing receipt...</div>
+          <div id="processingStatus">
+            <div style="background: rgba(255,255,255,0.2); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl);">
+              <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
+                <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">?</div>
+                <div class="text-xl" style="color: white;">Order details confirmed</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);">
+                <div style="width: 32px; height: 32px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold;">?</div>
+                <div class="text-xl" style="color: white;">Customer number assigned</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="animate-spin" style="width: 32px; height: 32px; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%;"></div>
+                <div class="text-xl" style="color: white;">Submitting to system...</div>
+              </div>
             </div>
           </div>
 
@@ -1560,16 +1828,13 @@ function createReceiptScreen() {
         </div>
 
         <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: white; border: 2px solid #000; overflow: auto; max-height: calc(100vh - 100px);">
-          <!-- CUSTOMER RECEIPT (LEFT SIDE) -->
+          <!-- CUSTOMER RECEIPT (LEFT SIDE) - FIX: Removed watermark, standardized customer ID size -->
           <div style="padding: 12px; background: white; color: black; position: relative; border-right: 3px dashed #000;">
-            <!-- "VOID UNLESS STAMPED" Watermark - ON TOP -->
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 32px; font-weight: bold; color: rgba(200, 0, 0, 0.12); white-space: nowrap; pointer-events: none; z-index: 10; letter-spacing: 3px;">VOID UNLESS STAMPED</div>
-
             <div style="position: relative; z-index: 1;">
-              <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 8px; margin-bottom: 8px;">
-                <div style="font-size: 18px; font-weight: bold;">CUSTOMER RECEIPT</div>
-                <div style="font-size: 24px; font-weight: bold; margin: 6px 0;">#${state.customerNumber}</div>
-                <div style="font-size: 10px; font-weight: bold;">⚠️ KEEP THIS RECEIPT</div>
+              <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 12px; margin-bottom: 12px;">
+                <div style="font-size: 22px; font-weight: bold;">CUSTOMER RECEIPT</div>
+                <div style="font-size: 28px; font-weight: bold; margin: 8px 0;">#${state.customerNumber}</div>
+                <div style="font-size: 18px; font-weight: 900; color: #d00; background: #ffeb3b; padding: 6px 12px; display: inline-block; border: 2px solid #000;">⚠️ KEEP THIS RECEIPT ⚠️</div>
               </div>
 
               <div style="font-size: 11px; line-height: 1.4;">
@@ -1589,9 +1854,16 @@ function createReceiptScreen() {
                   <div style="font-weight: bold; margin-top: 4px;">TOTAL: $${state.totalPrice.toFixed(2)}</div>
                 </div>
 
-                <div style="border: 2px solid #000; width: 65px; height: 65px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 8px 0;">
-                  <div style="font-size: 16px; font-weight: bold;">☐</div>
-                  <div style="font-size: 9px; color: #666; margin-top: 2px;">PAID</div>
+                <!-- QR Code for Order Status (Mobile-Friendly) -->
+                <div style="text-align: center; margin: 12px 0; padding: 12px; background: white; border: 2px solid #000;">
+                  <div style="font-weight: bold; font-size: 11px; margin-bottom: 8px;">SCAN TO CHECK ORDER STATUS</div>
+                  <div style="width: 120px; height: 120px; margin: 0 auto; background: white; display: flex; align-items: center; justify-content: center; border: 2px solid #000;">
+                    <svg viewBox="0 0 29 29" style="width: 100%; height: 100%;">
+                      <rect width="29" height="29" fill="white"/>
+                      <path d="M0,0h7v7h-7zM8,0h1v1h1v1h-1v1h-1v-1h-1v1h-1v-2h2zM10,0h3v1h-1v1h-1v1h-1zM16,0h1v3h1v-1h1v-1h3v1h-1v1h-1v1h1v1h1v-1h1v2h-1v1h1v1h1v-1h1v-2h1v-3h1v7h-1v-1h-2v2h-1v-1h-1v-1h-1v1h-1v1h1v2h-1v1h-1v-2h-1v-1h-1v1h-1v-1h-1v1h-1v1h1v1h-1v1h-2v-1h-1v1h-1v-1h-1v-1h1v-1h-1v-1h2v-1h1v-1h1v-1h-2v-1h1v-1h-1v-1h1v-1h2v-2h2v-1h1v-1h-3v-1h-1v-1h1v-1h-1v-1h1v-1h2v1h1v-2h-2v-1h-1v-1h-1v-1h-1v-2h2v1h1v-1h2v-1h-2v-2h1v-1h-1v-1h-1v2h-1v1h-1v-1h-1v1h-1v-1h-2v-1h1v-1h-1v-1h1v-1h1zM14,1h1v1h-1zM22,0h7v7h-7zM1,1v5h5v-5zM9,2h1v1h-1zM11,2v1h-1v1h1v-1h1v-1zM15,2h1v1h-1zM23,1v5h5v-5zM2,2h3v3h-3zM18,2h1v2h-1zM24,2h3v3h-3zM10,4h1v2h-1v1h-1v-1h1zM16,4v1h-1v1h1v1h-2v-1h-1v1h-1v-1h-1v-1h3v-1zM19,5h1v1h-1zM8,6h1v1h-1zM20,6h1v2h-1zM5,7h2v1h1v1h-1v1h-1v-1h-2v1h-1v-1h-1v-1h2v-1h1zM13,7h2v2h-1v-1h-1zM9,8h1v1h-1zM0,9h1v1h1v1h1v1h-2v1h1v1h-1v2h1v-1h1v1h-1v1h-2v-3h1v-2h-1zM14,9h1v1h2v1h-2v1h-1v1h1v1h-1v1h-2v-1h-1v1h-1v-1h-1v-1h1v-1h-1v-1h3v1h1v-1h1zM18,9h1v1h1v-1h1v1h-1v2h1v-1h2v2h-1v-1h-1v3h-1v-2h-1v-1h-1v-1h1v-1h-1zM4,10h2v1h-2zM22,10v1h1v1h-1v1h-1v1h1v-1h1v3h-1v1h-1v-3h-1v-1h1v-2h-2v-1zM6,11h1v1h-1zM25,11h1v1h-1zM26,12h1v2h-1zM8,13h1v1h1v1h-2zM24,13h1v2h-1v1h-1v-1h1v-1h-1zM17,14h2v1h-2zM27,14h2v1h-2zM11,15h1v1h-1zM16,15h1v1h-1zM4,16h1v2h1v-1h1v-1h2v1h-1v1h-1v1h1v1h-1v1h-2v-1h-1v-1h1v-1h-1zM20,16h1v1h-1zM26,16h1v1h-1zM9,17h1v1h-1zM15,17h1v1h1v-1h1v1h-1v1h-1v1h-1v-1h1zM28,17h1v2h-1zM19,18h1v1h1v-1h3v1h-1v1h-1v-1h-2v1h-1v1h1v1h-2v-1h1v-1h-1v-1h1zM25,18h1v1h1v2h-1v-1h-1zM10,19h2v1h-1v1h-1zM27,19h1v2h-1zM13,20h2v1h-1v1h-1zM23,20h1v1h-1zM9,21h1v1h-1zM0,22h7v7h-7zM16,22h1v1h-1zM18,22h1v2h-1zM20,22h2v1h-2zM24,22h1v1h-1zM1,23v5h5v-5zM11,23h1v1h-1zM26,23h1v1h-1zM2,24h3v3h-3zM10,24h1v2h-1zM13,24h2v1h1v1h-1v1h-1v1h-1v-1h-1v-1h1zM21,24h1v1h-1zM23,24h2v1h1v1h-3v1h2v1h-3v1h4v-2h1v-1h-1v-1h1v-1h-1v-1h-3zM8,25h1v1h-1zM17,25v1h1v1h-2v-1h1zM20,25h1v3h-1zM28,25h1v4h-1zM9,26v1h-1v1h2v-2zM11,27h1v1h-1zM16,27h1v1h-1zM22,27h1v1h-1zM25,28h2v1h-2z" fill="black"/>
+                    </svg>
+                  </div>
+                  <div style="font-size: 9px; margin-top: 6px; color: #666;">ID: ${state.customerNumber}</div>
                 </div>
 
                 ${state.printQuantity > 0 ? `
@@ -1624,71 +1896,72 @@ function createReceiptScreen() {
             </div>
           </div>
 
-          <!-- OPERATOR RECEIPT (RIGHT SIDE) -->
+          <!-- OPERATOR RECEIPT (RIGHT SIDE) - FIX: Matched customer ID size, reorganized layout -->
           <div style="padding: 12px; background: #f8f8f8; color: black;">
             <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 8px; margin-bottom: 8px;">
               <div style="font-size: 16px; font-weight: bold;">OPERATOR COPY</div>
-              <div style="font-size: 60px; font-weight: bold; margin: 6px 0; letter-spacing: 3px; line-height: 1;">${state.customerNumber}</div>
+              <div style="font-size: 28px; font-weight: bold; margin: 6px 0; letter-spacing: 3px; line-height: 1;">${state.customerNumber}</div>
             </div>
 
-            <div style="display: grid; grid-template-columns: ${state.customerPhoto ? '110px 1fr' : '1fr'}; gap: 10px; margin-bottom: 8px;">
-              ${state.customerPhoto ? `
-                <div style="text-align: center;">
-                  <div style="font-weight: bold; font-size: 9px; margin-bottom: 4px;">CUSTOMER ID:</div>
-                  <img src="${state.customerPhoto}" alt="Customer ID" width="100" height="100" style="max-width: 100px !important; max-height: 100px !important; width: 100px !important; height: auto !important; border: 2px solid #000; display: block; margin: 0 auto;">
-                </div>
-              ` : ''}
-
-              <div>
-                <div style="font-size: 9px; line-height: 1.4; background: white; padding: 8px; border: 1px solid #000; margin-bottom: 8px;">
-                  <div style="font-weight: bold; margin-bottom: 4px;">QUICK DATA:</div>
-                  <div style="font-family: monospace; font-size: 8px;">N: ${state.customerName} | ${state.paymentMethod?.toUpperCase()}</div>
-                  <div style="font-family: monospace; font-size: 8px;">BG#${state.selectedBackground === 'custom' ? 'CUSTOM' : state.selectedBackground}: ${state.backgroundName}</div>
-                  <div style="font-family: monospace; font-size: 8px;">Party: ${state.partySize} | $${state.totalPrice.toFixed(2)} | ${state.printQuantity}P ${state.emailAddresses.length}E</div>
-                  <div style="font-family: monospace; font-size: 8px;">${date} ${time}</div>
-                </div>
-
-                ${state.emailAddresses.length > 0 ? `
-                  <div style="border: 1px solid #000; padding: 6px; margin-bottom: 8px; font-size: 8px; background: white;">
-                    <div style="font-weight: bold;">Emails:</div>
-                    ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
-                  </div>
-                ` : ''}
+            ${state.customerPhoto ? `
+              <div style="text-align: center; margin-bottom: 8px;">
+                <div style="font-weight: bold; font-size: 11px; margin-bottom: 6px;">CUSTOMER ID:</div>
+                <img src="${state.customerPhoto}" alt="Customer ID" width="200" height="200" style="max-width: 200px !important; max-height: 200px !important; width: 200px !important; height: auto !important; border: 3px solid #000; display: block; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
               </div>
+            ` : ''}
+
+            <div style="font-size: 9px; line-height: 1.4; background: white; padding: 8px; border: 1px solid #000; margin-bottom: 8px;">
+              <div style="font-weight: bold; margin-bottom: 4px;">QUICK DATA:</div>
+              <div style="font-family: monospace; font-size: 8px;">N: ${state.customerName} | ${state.paymentMethod?.toUpperCase()}</div>
+              <div style="font-family: monospace; font-size: 8px;">BG#${state.selectedBackground === 'custom' ? 'CUSTOM' : state.selectedBackground}: ${state.backgroundName}</div>
+              <div style="font-family: monospace; font-size: 8px;">Party: ${state.partySize} | $${state.totalPrice.toFixed(2)} | ${state.printQuantity}P ${state.emailAddresses.length}E</div>
+              <div style="font-family: monospace; font-size: 8px;">${date} ${time}</div>
             </div>
 
-            <div style="border: 1px solid #000; padding: 6px; margin-bottom: 8px; min-height: 40px; background: white;">
-              <div style="font-weight: bold; font-size: 9px;">NOTES:</div>
-              <div style="border-bottom: 1px dotted #000; margin: 3px 0;"></div>
-              <div style="border-bottom: 1px dotted #000; margin: 3px 0;"></div>
-              <div style="border-bottom: 1px dotted #000; margin: 3px 0;"></div>
+            ${state.emailAddresses.length > 0 ? `
+              <div style="border: 1px solid #000; padding: 6px; margin-bottom: 8px; font-size: 8px; background: white;">
+                <div style="font-weight: bold;">Emails:</div>
+                ${state.emailAddresses.map((emailObj, i) => `<div>${i + 1}. ${emailObj.value || '(blank)'}</div>`).join('')}
+              </div>
+            ` : ''}
+
+            <div style="border: 2px solid #000; padding: 12px; margin-bottom: 12px; min-height: 100px; background: white;">
+              <div style="font-weight: bold; font-size: 12px; margin-bottom: 10px; text-align: center;">NOTES:</div>
+              <div style="height: 70px;"></div>
             </div>
 
-            <div style="font-weight: bold; margin-bottom: 6px; font-size: 10px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px;">VERIFICATION STAMPS</div>
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;">
-              ${[
-                { label: 'PHOTO', symbol: '☐' },
-                { label: 'PAID', symbol: '☐' },
-                { label: 'EMAIL', symbol: '☐' },
-                { label: 'PRINT', symbol: '☐' },
-                { label: 'PICKUP', symbol: '☐' }
-              ].map(stamp => `
-                <div style="border: 2px solid #000; padding: 6px; text-align: center; font-size: 9px; aspect-ratio: 1/1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
-                  <div style="font-size: 14px; margin-bottom: 2px;">${stamp.symbol}</div>
-                  <div style="font-weight: bold; font-size: 7px;">${stamp.label}</div>
-                </div>
-              `).join('')}
+            <!-- QR Code for Operator Dashboard -->
+            <div style="text-align: center; padding: 12px; background: white; border: 2px solid #000;">
+              <div style="font-weight: bold; font-size: 11px; margin-bottom: 8px;">OPERATOR: SCAN TO VIEW/UPDATE</div>
+              <div style="width: 140px; height: 140px; margin: 0 auto; background: white; display: flex; align-items: center; justify-content: center;">
+                <svg viewBox="0 0 29 29" style="width: 100%; height: 100%;">
+                  <rect width="29" height="29" fill="white"/>
+                  <path d="M0,0h7v7h-7zM8,0h1v1h1v1h-1v1h-1v-1h-1v1h-1v-2h2zM10,0h3v1h-1v1h-1v1h-1zM16,0h1v3h1v-1h1v-1h3v1h-1v1h-1v1h1v1h1v-1h1v2h-1v1h1v1h1v-1h1v-2h1v-3h1v7h-1v-1h-2v2h-1v-1h-1v-1h-1v1h-1v1h1v2h-1v1h-1v-2h-1v-1h-1v1h-1v-1h-1v1h-1v1h1v1h-1v1h-2v-1h-1v1h-1v-1h-1v-1h1v-1h-1v-1h2v-1h1v-1h1v-1h-2v-1h1v-1h-1v-1h1v-1h2v-2h2v-1h1v-1h-3v-1h-1v-1h1v-1h-1v-1h1v-1h2v1h1v-2h-2v-1h-1v-1h-1v-1h-1v-2h2v1h1v-1h2v-1h-2v-2h1v-1h-1v-1h-1v2h-1v1h-1v-1h-1v1h-1v-1h-2v-1h1v-1h-1v-1h1v-1h1zM14,1h1v1h-1zM22,0h7v7h-7zM1,1v5h5v-5zM9,2h1v1h-1zM11,2v1h-1v1h1v-1h1v-1zM15,2h1v1h-1zM23,1v5h5v-5zM2,2h3v3h-3zM18,2h1v2h-1zM24,2h3v3h-3zM10,4h1v2h-1v1h-1v-1h1zM16,4v1h-1v1h1v1h-2v-1h-1v1h-1v-1h-1v-1h3v-1zM19,5h1v1h-1zM8,6h1v1h-1zM20,6h1v2h-1zM5,7h2v1h1v1h-1v1h-1v-1h-2v1h-1v-1h-1v-1h2v-1h1zM13,7h2v2h-1v-1h-1zM9,8h1v1h-1zM0,9h1v1h1v1h1v1h-2v1h1v1h-1v2h1v-1h1v1h-1v1h-2v-3h1v-2h-1zM14,9h1v1h2v1h-2v1h-1v1h1v1h-1v1h-2v-1h-1v1h-1v-1h-1v-1h1v-1h-1v-1h3v1h1v-1h1zM18,9h1v1h1v-1h1v1h-1v2h1v-1h2v2h-1v-1h-1v3h-1v-2h-1v-1h-1v-1h1v-1h-1zM4,10h2v1h-2zM22,10v1h1v1h-1v1h-1v1h1v-1h1v3h-1v1h-1v-3h-1v-1h1v-2h-2v-1zM6,11h1v1h-1zM25,11h1v1h-1zM26,12h1v2h-1zM8,13h1v1h1v1h-2zM24,13h1v2h-1v1h-1v-1h1v-1h-1zM17,14h2v1h-2zM27,14h2v1h-2zM11,15h1v1h-1zM16,15h1v1h-1zM4,16h1v2h1v-1h1v-1h2v1h-1v1h-1v1h1v1h-1v1h-2v-1h-1v-1h1v-1h-1zM20,16h1v1h-1zM26,16h1v1h-1zM9,17h1v1h-1zM15,17h1v1h1v-1h1v1h-1v1h-1v1h-1v-1h1zM28,17h1v2h-1zM19,18h1v1h1v-1h3v1h-1v1h-1v-1h-2v1h-1v1h1v1h-2v-1h1v-1h-1v-1h1zM25,18h1v1h1v2h-1v-1h-1zM10,19h2v1h-1v1h-1zM27,19h1v2h-1zM13,20h2v1h-1v1h-1zM23,20h1v1h-1zM9,21h1v1h-1zM0,22h7v7h-7zM16,22h1v1h-1zM18,22h1v2h-1zM20,22h2v1h-2zM24,22h1v1h-1zM1,23v5h5v-5zM11,23h1v1h-1zM26,23h1v1h-1zM2,24h3v3h-3zM10,24h1v2h-1zM13,24h2v1h1v1h-1v1h-1v1h-1v-1h-1v-1h1zM21,24h1v1h-1zM23,24h2v1h1v1h-3v1h2v1h-3v1h4v-2h1v-1h-1v-1h1v-1h-1v-1h-3zM8,25h1v1h-1zM17,25v1h1v1h-2v-1h1zM20,25h1v3h-1zM28,25h1v4h-1zM9,26v1h-1v1h2v-2zM11,27h1v1h-1zM16,27h1v1h-1zM22,27h1v1h-1zM25,28h2v1h-2z" fill="black"/>
+                </svg>
+              </div>
+              <div style="font-size: 10px; margin-top: 6px; color: #666;">localhost:5000/operator<br>Order #${state.customerNumber}</div>
             </div>
           </div>
         </div>
 
-        <div style="text-align: center; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; align-items: center;">
-          <button class="btn btn--gradient-primary btn--large" id="printBtn" style="font-size: 16px; padding: 12px 28px;">
-            <span style="font-size: 20px; margin-right: 8px;">🖨️</span>
+        <div style="text-align: center; margin-top: 12px; display: flex; gap: 24px; justify-content: center; align-items: center;">
+          <button class="btn btn--gradient-primary btn--large" id="printBtn" style="font-size: 18px; padding: 14px 32px; min-height: 64px;">
+            <span style="font-size: 24px; margin-right: 8px;">🖨️</span>
             <span>PRINT RECEIPTS</span>
           </button>
-          <div style="font-size: 12px; color: var(--color-gray-600);">Auto-return in <span id="countdown">30</span>s</div>
+          <button class="btn btn--secondary btn--large" id="returnStartBtn" style="font-size: 18px; padding: 14px 32px; min-height: 64px;">
+            <span style="font-size: 24px; margin-right: 8px;">🏠</span>
+            <span>RETURN TO START</span>
+          </button>
         </div>
+        <div style="text-align: center; margin-top: 8px; font-size: 13px; color: var(--color-gray-600);">Auto-return in <span id="countdown">30</span>s</div>
+        <script>
+          // Auto-print receipt on page load
+          setTimeout(() => {
+            const printBtn = document.getElementById('printBtn');
+            if (printBtn) printBtn.click();
+          }, 500);
+        </script>
       </main>
     </div>
   `;
@@ -1780,6 +2053,10 @@ function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
+  // Reset caps lock and shift when navigating to new screen
+  capsLockEnabled = false;
+  shiftEnabled = false;
+
   let html = '';
 
   switch(state.currentScreen) {
@@ -1838,6 +2115,9 @@ function render() {
     setTimeout(() => createConfetti(), 500);
   }
 
+  // Reset inactivity timer on screen change
+  resetInactivityTimer();
+
   // AUTO-SAVE: Persist state after render (T1)
   saveState();
 }
@@ -1888,42 +2168,78 @@ function attachEventListeners() {
       state.selectedBackground = id === 'custom' ? 'custom' : parseInt(id);
       state.backgroundName = btn.dataset.name;
 
-      // Update UI without re-rendering to prevent image refresh
-      backgroundBtns.forEach(b => b.classList.remove('bg-selected'));
+      // FIX: Update UI without re-rendering - update borders, shadows, and checkmarks
+      backgroundBtns.forEach(b => {
+        b.classList.remove('bg-selected');
+        // Reset to unselected styling - FIX: Use appropriate border based on button type
+        if (b.dataset.id === 'custom') {
+          b.style.border = '3px solid rgba(255,255,255,0.2)';
+        } else {
+          b.style.border = '3px solid var(--color-border)';
+        }
+        b.style.boxShadow = 'var(--shadow-md)';
+        // Remove checkmark if exists
+        const checkmark = b.querySelector('div[style*="position: absolute"][style*="top: 4px"]');
+        if (checkmark) checkmark.remove();
+      });
       btn.classList.add('bg-selected');
+      // Add selected styling
+      btn.style.border = '4px solid var(--color-success)';
+      btn.style.boxShadow = '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)';
+      // Add checkmark if not custom button
+      if (id !== 'custom') {
+        const checkmark = document.createElement('div');
+        checkmark.style.cssText = 'position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.4);';
+        checkmark.textContent = '✓';
+        btn.appendChild(checkmark);
+      }
 
-      // Update the preview if needed
+      // FIX: Update the preview for all selections including custom
       const preview = document.querySelector('.background-preview-area');
-      if (preview && state.selectedBackground && state.selectedBackground !== 'custom') {
-        const backgrounds = [
-          { id: 1, name: 'Beach Sunset', category: 'Nature', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop' },
-          { id: 3, name: 'Mountain Vista', category: 'Nature', img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop' },
-          { id: 4, name: 'Tropical Paradise', category: 'Nature', img: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=300&fit=crop' },
-          { id: 7, name: 'Desert Dunes', category: 'Nature', img: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=400&h=300&fit=crop' },
-          { id: 8, name: 'Forest Path', category: 'Nature', img: 'https://images.unsplash.com/photo-1511497584788-876760111969?w=400&h=300&fit=crop' },
-          { id: 9, name: 'Waterfall', category: 'Nature', img: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=400&h=300&fit=crop' },
-          { id: 2, name: 'City Skyline', category: 'Urban', img: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop' },
-          { id: 10, name: 'Brooklyn Bridge', category: 'Urban', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=300&fit=crop' },
-          { id: 11, name: 'Tokyo Neon', category: 'Urban', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=300&fit=crop' },
-          { id: 12, name: 'Paris Streets', category: 'Urban', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop' },
-          { id: 5, name: 'Northern Lights', category: 'Sky', img: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=400&h=300&fit=crop' },
-          { id: 6, name: 'Starry Night', category: 'Sky', img: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=400&h=300&fit=crop' },
-          { id: 13, name: 'Galaxy', category: 'Sky', img: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400&h=300&fit=crop' },
-          { id: 14, name: 'Sunset Clouds', category: 'Sky', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&h=300&fit=crop' },
-          { id: 15, name: 'Blue Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=400&h=300&fit=crop' },
-          { id: 16, name: 'Pink Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400&h=300&fit=crop' },
-          { id: 17, name: 'Bokeh Lights', category: 'Abstract', img: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=300&fit=crop' },
-        ];
-        const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
-        if (selectedBg) {
+      if (preview) {
+        if (state.selectedBackground === 'custom') {
+          // Show custom background preview
           preview.innerHTML = `
-            <div style="position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
-              <img src="${selectedBg.img}" style="width: 100%; height: 100%; object-fit: cover;">
-              <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 12px;">
-                <div style="color: white; font-size: 18px; font-weight: bold;">${selectedBg.name}</div>
+            <div style="width: 100%; height: 100%; background: var(--gradient-secondary); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; box-shadow: var(--shadow-lg);">
+              <div>
+                <div style="font-size: 40px; margin-bottom: 8px;">★</div>
+                <div style="font-size: 18px; font-weight: bold; color: white; margin-bottom: 4px;">CUSTOM</div>
+                <div style="font-size: 12px; color: rgba(255,255,255,0.9);">Tell photographer</div>
               </div>
             </div>
           `;
+        } else if (state.selectedBackground) {
+          // Show regular background preview
+          const backgrounds = [
+            { id: 1, name: 'Beach Sunset', category: 'Nature', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop' },
+            { id: 3, name: 'Mountain Vista', category: 'Nature', img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop' },
+            { id: 4, name: 'Tropical Paradise', category: 'Nature', img: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=300&fit=crop' },
+            { id: 7, name: 'Desert Dunes', category: 'Nature', img: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=400&h=300&fit=crop' },
+            { id: 8, name: 'Forest Path', category: 'Nature', img: 'https://images.unsplash.com/photo-1511497584788-876760111969?w=400&h=300&fit=crop' },
+            { id: 9, name: 'Waterfall', category: 'Nature', img: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=400&h=300&fit=crop' },
+            { id: 2, name: 'City Skyline', category: 'Urban', img: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop' },
+            { id: 10, name: 'Brooklyn Bridge', category: 'Urban', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=300&fit=crop' },
+            { id: 11, name: 'Tokyo Neon', category: 'Urban', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=300&fit=crop' },
+            { id: 12, name: 'Paris Streets', category: 'Urban', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop' },
+            { id: 5, name: 'Northern Lights', category: 'Sky', img: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=400&h=300&fit=crop' },
+            { id: 6, name: 'Starry Night', category: 'Sky', img: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=400&h=300&fit=crop' },
+            { id: 13, name: 'Galaxy', category: 'Sky', img: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400&h=300&fit=crop' },
+            { id: 14, name: 'Sunset Clouds', category: 'Sky', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&h=300&fit=crop' },
+            { id: 15, name: 'Blue Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=400&h=300&fit=crop' },
+            { id: 16, name: 'Pink Gradient', category: 'Abstract', img: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400&h=300&fit=crop' },
+            { id: 17, name: 'Bokeh Lights', category: 'Abstract', img: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=300&fit=crop' },
+          ];
+          const selectedBg = backgrounds.find(bg => bg.id === state.selectedBackground);
+          if (selectedBg) {
+            preview.innerHTML = `
+              <div style="position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
+                <img src="${selectedBg.img}" style="width: 100%; height: 100%; object-fit: cover;">
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 12px;">
+                  <div style="color: white; font-size: 18px; font-weight: bold;">${selectedBg.name}</div>
+                </div>
+              </div>
+            `;
+          }
         }
       }
 
@@ -1959,13 +2275,8 @@ function attachEventListeners() {
         state.printQuantity = 0;
       }
 
-      // Update UI without re-rendering
-      deliveryBtns.forEach(b => b.classList.remove('card--selected'));
-      btn.classList.add('card--selected');
-
-      // Enable next button
-      const nextBtn = document.getElementById('nextBtn');
-      if (nextBtn) nextBtn.disabled = false;
+      // FIX: Re-render to update active states (no image flicker on this page)
+      render();
     });
   });
 
@@ -1983,23 +2294,56 @@ function attachEventListeners() {
         state.emailQuantity = quantity;
       }
 
-      // Update UI without re-rendering
-      quantityBtns.forEach(b => b.classList.remove('card--selected'));
-      btn.classList.add('card--selected');
+      // Update button styles without re-rendering entire screen
+      quantityBtns.forEach(otherBtn => {
+        const otherQuantity = parseInt(otherBtn.dataset.quantity);
+        const isSelected = otherQuantity === quantity && otherBtn.dataset.type === type;
 
-      // Update price tracker in real-time
-      const priceTrackerAmount = document.querySelector('.price-tracker__amount');
-      if (priceTrackerAmount) {
-        const newTotal = calculateCurrentPrice();
-        priceTrackerAmount.textContent = '$' + newTotal.toFixed(2);
-      }
+        // Update border
+        otherBtn.style.border = isSelected ? '4px solid var(--color-success)' : '4px solid var(--color-border)';
 
-      // Batch 6: Update floating price preview
+        // Update background
+        otherBtn.style.background = isSelected ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'white';
+
+        // Update box-shadow
+        otherBtn.style.boxShadow = isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)';
+
+        // Update all child divs by getting them as an array
+        const allDivs = Array.from(otherBtn.querySelectorAll('div'));
+
+        allDivs.forEach(div => {
+          const fontSize = parseInt(window.getComputedStyle(div).fontSize);
+
+          // The number (48px font)
+          if (fontSize === 48) {
+            div.style.color = isSelected ? 'white' : 'var(--color-gray-900)';
+            div.style.textShadow = isSelected ? '0 2px 8px rgba(0,0,0,0.3)' : 'none';
+          }
+          // The divider (2px height)
+          else if (div.style.height === '2px') {
+            div.style.background = isSelected ? 'rgba(255,255,255,0.5)' : 'var(--color-border)';
+          }
+          // The price (28px font)
+          else if (fontSize === 28) {
+            div.style.color = isSelected ? 'white' : 'var(--color-success)';
+            div.style.textShadow = isSelected ? '0 2px 10px rgba(0,0,0,0.4)' : 'none';
+          }
+          // The "per print" text (12px font)
+          else if (fontSize === 12) {
+            div.style.color = isSelected ? 'rgba(255,255,255,0.95)' : 'var(--color-gray-500)';
+            div.style.textShadow = isSelected ? '0 1px 4px rgba(0,0,0,0.3)' : 'none';
+          }
+        });
+      });
+
+      // Update price preview badge
       updatePricePreview();
 
-      // Enable next button
+      // Enable continue button
       const nextBtn = document.getElementById('nextBtn');
-      if (nextBtn) nextBtn.disabled = false;
+      if (nextBtn) {
+        nextBtn.disabled = false;
+      }
     });
   });
 
@@ -2021,8 +2365,27 @@ function attachEventListeners() {
   const addEmailBtn = document.getElementById('addEmailBtn');
   if (addEmailBtn) {
     addEmailBtn.addEventListener('click', () => {
+      // FIX: Save scroll position before re-render
+      const emailContainer = document.querySelector('.email-list-container, main');
+      const scrollTop = emailContainer ? emailContainer.scrollTop : 0;
+
       state.emailAddresses.push({ id: generateEmailId(), value: '' });
       render();
+
+      // FIX: Restore scroll position after re-render, focus new input
+      setTimeout(() => {
+        const newEmailContainer = document.querySelector('.email-list-container, main');
+        if (newEmailContainer) {
+          // Scroll to bottom to show new email input
+          newEmailContainer.scrollTop = newEmailContainer.scrollHeight;
+        }
+
+        // Focus the newly added email input
+        const emailInputs = document.querySelectorAll('.email-input');
+        if (emailInputs.length > 0) {
+          emailInputs[emailInputs.length - 1].focus();
+        }
+      }, 50);
     });
   }
 
@@ -2110,6 +2473,15 @@ function attachEventListeners() {
   editBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetScreen = btn.dataset.screen;
+      navigateTo(targetScreen);
+    });
+  });
+
+  // ==================== PROGRESS BAR NAVIGATION ====================
+  const progressSteps = document.querySelectorAll('.progress__step[data-screen]');
+  progressSteps.forEach(step => {
+    step.addEventListener('click', () => {
+      const targetScreen = step.dataset.screen;
       navigateTo(targetScreen);
     });
   });
@@ -2213,6 +2585,31 @@ function attachEventListeners() {
   if (printBtn) {
     printBtn.addEventListener('click', () => {
       window.print();
+    });
+  }
+
+  // FIX: Add event listener for Return to Start button
+  const returnStartBtn = document.getElementById('returnStartBtn');
+  if (returnStartBtn) {
+    returnStartBtn.addEventListener('click', () => {
+      // Reset state and navigate back to attract screen
+      Object.assign(state, {
+        currentScreen: 'attract',
+        currentStep: 1,
+        backgroundId: null,
+        backgroundName: '',
+        partySize: 1,
+        deliveryMethod: '',
+        printQuantity: 0,
+        emailAddresses: [],
+        customerName: '',
+        paymentMethod: '',
+        customerPhoto: null,
+        totalPrice: 0,
+        screenHistory: []
+      });
+      clearSavedState();
+      navigateTo('attract', true);
     });
   }
 
@@ -2344,6 +2741,175 @@ function setupKeyboardShortcuts() {
 }
 
 // ============================================
+// INACTIVITY TIMEOUT
+// ============================================
+let inactivityTimer = null;
+let warningTimer = null;
+let countdownInterval = null;
+let warningModal = null;
+
+function resetInactivityTimer() {
+  // Clear existing timers
+  if (inactivityTimer) clearTimeout(inactivityTimer);
+  if (warningTimer) clearTimeout(warningTimer);
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  // Close warning modal if open
+  if (warningModal) {
+    warningModal.remove();
+    warningModal = null;
+  }
+
+  // Don't set timer on attract or welcome screens
+  if (state.currentScreen === 'attract' || state.currentScreen === 'welcome') {
+    return;
+  }
+
+  // Start 30-second inactivity timer
+  inactivityTimer = setTimeout(() => {
+    showInactivityWarning();
+  }, 30000); // 30 seconds
+}
+
+function showInactivityWarning() {
+  // Don't show on attract or welcome
+  if (state.currentScreen === 'attract' || state.currentScreen === 'welcome') {
+    return;
+  }
+
+  let countdown = 10;
+
+  // Create warning modal
+  warningModal = document.createElement('div');
+  warningModal.id = 'inactivityWarning';
+  warningModal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease-out;
+  `;
+
+  warningModal.innerHTML = `
+    <div style="
+      background: white;
+      padding: 60px;
+      border-radius: 24px;
+      text-align: center;
+      max-width: 600px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      animation: scaleIn 0.3s ease-out;
+    ">
+      <div style="font-size: 80px; margin-bottom: 20px;">⏰</div>
+      <h2 style="font-size: 36px; font-weight: 900; margin-bottom: 16px; color: #d00;">
+        Are you still there?
+      </h2>
+      <p style="font-size: 22px; color: #666; margin-bottom: 32px;">
+        Your session will end in:
+      </p>
+      <div id="countdownDisplay" style="
+        font-size: 120px;
+        font-weight: 900;
+        color: #d00;
+        margin-bottom: 40px;
+        line-height: 1;
+        text-shadow: 0 4px 20px rgba(221, 0, 0, 0.3);
+      ">${countdown}</div>
+      <button id="continueSessionBtn" style="
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 20px 60px;
+        font-size: 28px;
+        font-weight: 900;
+        border-radius: 16px;
+        cursor: pointer;
+        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+        transition: all 0.2s;
+      " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        👆 TAP TO CONTINUE
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(warningModal);
+
+  // Update countdown every second
+  countdownInterval = setInterval(() => {
+    countdown--;
+    const display = document.getElementById('countdownDisplay');
+    if (display) {
+      display.textContent = countdown;
+
+      // Pulse animation on countdown
+      display.style.animation = 'none';
+      setTimeout(() => {
+        display.style.animation = 'pulse 0.5s ease-out';
+      }, 10);
+    }
+
+    if (countdown <= 0) {
+      clearInterval(countdownInterval);
+      // Reset to attract screen
+      if (warningModal) {
+        warningModal.remove();
+        warningModal = null;
+      }
+      Object.assign(state, {
+        currentScreen: 'attract',
+        currentStep: 1,
+        backgroundId: null,
+        backgroundName: '',
+        partySize: 1,
+        deliveryMethod: '',
+        printQuantity: 0,
+        emailAddresses: [],
+        customerName: '',
+        paymentMethod: '',
+        customerPhoto: null,
+        totalPrice: 0,
+        screenHistory: []
+      });
+      clearSavedState();
+      navigateTo('attract', true);
+    }
+  }, 1000);
+
+  // Continue button
+  const continueBtn = document.getElementById('continueSessionBtn');
+  if (continueBtn) {
+    continueBtn.addEventListener('click', () => {
+      if (warningModal) {
+        warningModal.remove();
+        warningModal = null;
+      }
+      if (countdownInterval) clearInterval(countdownInterval);
+      resetInactivityTimer();
+    });
+  }
+}
+
+function setupInactivityTracking() {
+  // Track all user interactions
+  const events = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll'];
+
+  events.forEach(event => {
+    document.addEventListener(event, () => {
+      resetInactivityTimer();
+    }, { passive: true });
+  });
+
+  // Start initial timer
+  resetInactivityTimer();
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 async function init() {
@@ -2355,6 +2921,9 @@ async function init() {
 
   // Setup keyboard shortcuts
   setupKeyboardShortcuts();
+
+  // Setup inactivity tracking
+  setupInactivityTracking();
 
   // CHECK FOR SAVED STATE (T1)
   const savedState = loadState();
@@ -2415,6 +2984,7 @@ if (document.readyState === 'loading') {
   init();
 }
 
-// Expose for debugging
+// Expose for debugging and onclick handlers
 window.state = state;
 window.render = render;
+window.navigateToStep = navigateToStep;
