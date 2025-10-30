@@ -65,3 +65,6 @@ operator/settings.js
 
 # AI Generated test images in backgrounds folder
 public/backgrounds/ai-generated/
+
+# Source icon files (copies are in public/icons/)
+Icons/

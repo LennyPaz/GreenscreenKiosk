@@ -42,7 +42,8 @@ const state = {
   idleTimer: null,                 // For attract loop timeout
   welcomeTimer: null,              // For welcome screen timeout
   focusedInputId: null,            // Track currently focused input for keyboard
-  marketingOptIn: false            // Track marketing email consent
+  marketingOptIn: false,           // Track marketing email consent
+  priceBreakdownExpanded: false    // Track if price breakdown panel is expanded
 };
 
 // ============================================
@@ -135,72 +136,10 @@ async function loadConfig() {
 // ============================================
 /**
  * Render persistent generation indicator banner
- * Shows at top of screen when AI is generating
+ * DISABLED - Loading state shows in preview area instead (more useful)
  */
 function renderGenerationIndicator() {
-  let existingIndicator = document.getElementById('ai-generation-indicator');
-
-  if (state.isGenerating && state.generatingForPhotoIndex !== null) {
-    const photoNum = state.generatingForPhotoIndex + 1;
-    const photoText = state.photoQuantity > 1 ? ` for Photo ${photoNum}` : '';
-
-    if (!existingIndicator) {
-      // Create new indicator
-      existingIndicator = document.createElement('div');
-      existingIndicator.id = 'ai-generation-indicator';
-      existingIndicator.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 9999;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 16px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        cursor: pointer;
-        transition: all 0.3s ease;
-      `;
-
-      existingIndicator.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="font-size: 24px; animation: pulse 2s ease-in-out infinite;">✨</div>
-          <div>
-            <div style="font-size: 16px; font-weight: 600;">Generating AI Background${photoText}...</div>
-            <div style="font-size: 13px; opacity: 0.9;">This usually takes 15-20 seconds</div>
-          </div>
-        </div>
-        <div style="font-size: 13px; opacity: 0.8;">Click to view progress</div>
-        <style>
-          @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.8; }
-          }
-        </style>
-      `;
-
-      // Click handler to return to AI Custom tab
-      existingIndicator.addEventListener('click', () => {
-        if (!state.aiCustomSelected) {
-          // Switch to custom tab
-          const customTab = document.querySelector('[data-category="Custom"]');
-          if (customTab) {
-            customTab.click();
-          }
-        }
-      });
-
-      document.body.insertBefore(existingIndicator, document.body.firstChild);
-    }
-  } else {
-    // Remove indicator if exists
-    if (existingIndicator) {
-      existingIndicator.remove();
-    }
-  }
+  // Disabled - do nothing
 }
 
 // ============================================
@@ -360,26 +299,43 @@ function calculateCurrentPrice() {
  * Update price display if it exists on current screen
  */
 function updatePricePreview() {
-  const pricePreview = document.getElementById('pricePreview');
-  console.log('[updatePricePreview] Called. Element exists:', !!pricePreview);
-  if (pricePreview) {
-    const price = calculateCurrentPrice();
-    console.log('[updatePricePreview] Updating badge to:', price);
-    pricePreview.textContent = `$${price.toFixed(2)}`;
+  const pricePreviewContainer = document.getElementById('pricePreviewContainer');
+  console.log('[updatePricePreview] Called. Container exists:', !!pricePreviewContainer);
 
-    // Add pulse animation on price change
-    pricePreview.style.animation = 'none';
-    setTimeout(() => {
-      pricePreview.style.animation = 'pulse 0.5s ease-out';
-    }, 10);
+  if (pricePreviewContainer) {
+    // If breakdown is expanded, we need to re-render the entire badge HTML
+    if (state.priceBreakdownExpanded) {
+      console.log('[updatePricePreview] Breakdown is expanded, re-rendering full badge');
+      const newBadgeHtml = createPricePreviewBadge();
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = newBadgeHtml;
+      const newContainer = tempDiv.firstElementChild;
+      pricePreviewContainer.replaceWith(newContainer);
+      // Re-attach event listeners after replacing
+      attachEventListeners();
+    } else {
+      // Just update the price text
+      const pricePreview = document.getElementById('pricePreview');
+      if (pricePreview) {
+        const price = calculateCurrentPrice();
+        console.log('[updatePricePreview] Updating badge to:', price);
+        pricePreview.textContent = `$${price.toFixed(2)}`;
+
+        // Add pulse animation on price change
+        pricePreview.style.animation = 'none';
+        setTimeout(() => {
+          pricePreview.style.animation = 'pulse 0.5s ease-out';
+        }, 10);
+      }
+    }
   } else {
-    console.log('[updatePricePreview] No badge element found on page');
+    console.log('[updatePricePreview] No badge container found on page');
   }
 }
 
 /**
- * Generate price preview badge HTML for screens
- * @returns {string} HTML for floating price badge
+ * Generate price preview badge HTML for screens (expandable with breakdown)
+ * @returns {string} HTML for floating price badge/breakdown panel
  */
 function createPricePreviewBadge() {
   const config = state.config;
@@ -391,11 +347,95 @@ function createPricePreviewBadge() {
   // Only show if there's a selected delivery method
   if (!state.deliveryMethod) return '';
 
+  // Calculate breakdown components
+  let printSubtotal = 0;
+  let emailSubtotal = 0;
+  let breakdownHtml = '';
+
+  if (!isFree) {
+    // Print pricing breakdown
+    if (state.deliveryMethod === 'print' || state.deliveryMethod === 'both') {
+      const basePrintPrice = config.printPricing?.[state.printQuantity] || 0;
+      printSubtotal = basePrintPrice * state.photoQuantity;
+      const totalPrints = state.printQuantity * state.photoQuantity;
+      const pricePerPrint = totalPrints > 0 ? (printSubtotal / totalPrints) : 0;
+      breakdownHtml += `
+        <div style="background: rgba(255,255,255,0.25); padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.3);">
+          <div style="font-size: 14px; font-weight: 700; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">
+            <span style="font-size: 20px;">🖨️</span> PRINTS
+          </div>
+          <div style="font-size: 14px; color: white; line-height: 1.7; text-shadow: 0 0 3px rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4); font-family: 'Courier New', monospace;">
+            ${state.printQuantity} prints × ${state.photoQuantity} photos = ${totalPrints} total<br>
+            ${totalPrints} × $${pricePerPrint.toFixed(2)} each
+          </div>
+          <div style="font-size: 20px; font-weight: bold; color: white; margin-top: 10px; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">
+            $${printSubtotal.toFixed(2)}
+          </div>
+        </div>
+      `;
+    }
+
+    // Email pricing breakdown
+    if (state.deliveryMethod === 'email' || state.deliveryMethod === 'both') {
+      const baseEmailPrice = config.emailPricing?.[1] || 10;
+      const numRecipients = state.emailAddresses.filter(email => email.value && email.value.trim()).length;
+      if (numRecipients > 0) {
+        emailSubtotal = baseEmailPrice + (numRecipients - 1);
+        const additionalRecipients = numRecipients - 1;
+        breakdownHtml += `
+          <div style="background: rgba(255,255,255,0.25); padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.3);">
+            <div style="font-size: 14px; font-weight: 700; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">
+              <span style="font-size: 20px;">📧</span> EMAIL DELIVERY
+            </div>
+            <div style="font-size: 14px; color: white; line-height: 1.7; text-shadow: 0 0 3px rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4); font-family: 'Courier New', monospace;">
+              Base price: $${baseEmailPrice.toFixed(2)}<br>
+              ${additionalRecipients > 0 ? `Additional recipients: +$${additionalRecipients.toFixed(2)}<br>` : ''}
+              ${numRecipients} ${numRecipients === 1 ? 'recipient' : 'recipients'} total
+            </div>
+            <div style="font-size: 20px; font-weight: bold; color: white; margin-top: 10px; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">
+              $${emailSubtotal.toFixed(2)}
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Collapsed badge view
+  if (!state.priceBreakdownExpanded) {
+    return `
+      <div id="pricePreviewContainer" style="position: fixed; bottom: 100px; right: 20px; z-index: 90;">
+        <button id="pricePreviewBadge" style="background: var(--gradient-success); padding: 16px 24px; border-radius: 16px; box-shadow: var(--shadow-2xl); display: flex; flex-direction: column; align-items: center; animation: slideUp 0.3s ease-out; border: none; cursor: pointer; transition: all 0.3s ease; min-width: 140px;" onmouseover="this.style.transform='translateY(-4px) scale(1.05)'; this.style.boxShadow='0 32px 80px rgba(0, 0, 0, 0.3)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 24px 64px rgba(0, 0, 0, 0.25)'">
+          <div style="font-size: 12px; color: white; margin-bottom: 4px; font-weight: 600; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">CURRENT TOTAL</div>
+          <div id="pricePreview" style="font-size: 36px; font-weight: bold; color: white; line-height: 1; text-shadow: 0 1px 4px rgba(0,0,0,0.5);">$${currentPrice.toFixed(2)}</div>
+          <div style="font-size: 11px; color: white; margin-top: 4px; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">Click for breakdown ↑</div>
+        </button>
+      </div>
+    `;
+  }
+
+  // Expanded breakdown view
   return `
-    <div id="pricePreviewContainer" style="position: fixed; bottom: 100px; right: 20px; z-index: 90;">
-      <div style="background: var(--gradient-success); padding: 16px 24px; border-radius: 16px; box-shadow: var(--shadow-2xl); display: flex; flex-direction: column; align-items: center; animation: slideUp 0.3s ease-out;">
-        <div style="font-size: 12px; color: rgba(255,255,255,0.9); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px;">CURRENT TOTAL</div>
-        <div id="pricePreview" style="font-size: 36px; font-weight: bold; color: white; line-height: 1;">$${currentPrice.toFixed(2)}</div>
+    <div id="pricePreviewContainer" style="position: fixed; bottom: 100px; right: 20px; z-index: 90; max-width: 360px;">
+      <div style="background: var(--gradient-success); padding: 20px; border-radius: 16px; box-shadow: var(--shadow-2xl); animation: slideUp 0.3s ease-out;">
+        <!-- Header with close button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div style="font-size: 16px; color: white; font-weight: 700; letter-spacing: 0.5px; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">PRICE BREAKDOWN</div>
+          <button id="collapseBreakdownBtn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" onmouseover="this.style.background='rgba(255,255,255,0.4)'" onmouseout="this.style.background='rgba(255,255,255,0.3)'">
+            ↓
+          </button>
+        </div>
+
+        <!-- Breakdown sections -->
+        ${breakdownHtml}
+
+        <!-- Grand total -->
+        <div style="border-top: 2px solid rgba(255,255,255,0.4); padding-top: 12px; margin-top: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 16px; font-weight: 700; color: white; letter-spacing: 0.5px; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">TOTAL</div>
+            <div style="font-size: 42px; font-weight: bold; color: white; line-height: 1; text-shadow: 0 1px 4px rgba(0,0,0,0.5);">$${currentPrice.toFixed(2)}</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -540,12 +580,12 @@ function goBack() {
     if (previousScreen) {
       navigateTo(previousScreen, true);
     } else {
-      // Fallback: go to attract if screen is undefined
-      navigateTo('attract', true);
+      // Fallback: go to welcome if screen is undefined
+      navigateTo('welcome', true);
     }
   } else {
-    // At first step, go to attract
-    navigateTo('attract', true);
+    // At first step, go to welcome
+    navigateTo('welcome', true);
   }
 }
 
@@ -1390,27 +1430,43 @@ async function createBackgroundScreen() {
                   }
                 })()}
 
-                <!-- Textarea -->
-                <textarea
-                  id="aiPromptInput"
-                  placeholder="${(() => {
-                    const hasCustom = state.config?.features?.customBackground;
-                    const hasAI = state.config?.features?.aiCustom;
-                    if (!hasCustom && hasAI) return 'Describe what you want AI to generate... (e.g., sunset beach, mountain landscape, city skyline at night)';
-                    if (hasCustom && !hasAI) return 'Describe your desired background for the photographer... (e.g., sunset beach, mountain landscape, city skyline at night)';
-                    if (state.customMode === 'ai') return 'Describe what you want AI to generate... (e.g., sunset beach, mountain landscape, city skyline at night)';
-                    return 'Describe your desired background for the photographer... (e.g., sunset beach, mountain landscape, city skyline at night)';
-                  })()}"
-                  style="width: 100%; flex: 1; min-height: 80px; max-height: 160px; padding: 16px; font-size: 16px; border: 2px solid var(--color-border); border-radius: 8px; resize: none; font-family: inherit; line-height: 1.5;"
-                >${state.aiPrompts[state.currentPhotoIndex] || ''}</textarea>
+                <!-- Textarea with Clear Button -->
+                <div style="position: relative; flex: 1; display: flex; flex-direction: column;">
+                  <textarea
+                    id="aiPromptInput"
+                    placeholder="${(() => {
+                      const hasCustom = state.config?.features?.customBackground;
+                      const hasAI = state.config?.features?.aiCustom;
+                      if (!hasCustom && hasAI) return 'Describe what you want AI to generate... (e.g., sunset beach, mountain landscape, city skyline at night)';
+                      if (hasCustom && !hasAI) return 'Describe your desired background for the photographer... (e.g., sunset beach, mountain landscape, city skyline at night)';
+                      if (state.customMode === 'ai') return 'Describe what you want AI to generate... (e.g., sunset beach, mountain landscape, city skyline at night)';
+                      return 'Describe your desired background for the photographer... (e.g., sunset beach, mountain landscape, city skyline at night)';
+                    })()}"
+                    style="width: 100%; min-height: 80px; max-height: 160px; padding: 16px; padding-right: 60px; font-size: 16px; border: 2px solid var(--color-border); border-radius: 8px; resize: none; font-family: inherit; line-height: 1.5;"
+                  >${state.aiPrompts[state.currentPhotoIndex] || ''}</textarea>
+                  ${state.aiPrompts[state.currentPhotoIndex] ? `
+                    <button id="clearPromptBtn" style="position: absolute; top: 12px; right: 12px; padding: 8px 12px; border-radius: 6px; background: var(--color-error); color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md); transition: all 0.2s; font-weight: bold;">
+                      Clear
+                    </button>
+                  ` : ''}
+                </div>
 
+                <!-- Fixed position instructional text (always present, conditionally visible) -->
+                <div style="min-height: ${state.aiGeneratedImages[state.currentPhotoIndex] ? '52px' : '0'}; transition: min-height 0.2s;">
+                  ${state.aiGeneratedImages[state.currentPhotoIndex] ? `
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; padding: 10px; text-align: center;">
+                      <div style="font-size: 13px; font-weight: 600; color: white;">
+                        💡 Want a different image? Type a new prompt above and click Regenerate
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <!-- Photo counter (for multi-photo mode) -->
                 ${!state.useSameBackground && state.photoQuantity > 1 ? `
                   <div style="background: white; border: 2px solid var(--color-primary); border-radius: 8px; padding: 12px; text-align: center;">
                     <div style="font-size: 16px; font-weight: 700; color: var(--color-primary);">
                       Photo ${state.currentPhotoIndex + 1} of ${state.photoQuantity}
-                    </div>
-                    <div style="font-size: 12px; color: var(--color-gray-600); margin-top: 4px;">
-                      Describe the custom background for this photo
                     </div>
                   </div>
                 ` : ''}
@@ -1433,9 +1489,12 @@ async function createBackgroundScreen() {
                       background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 2s infinite;
                       transition: all 0.2s;
                       box-shadow: ${isSelectedBg(bg.id) ? '0 0 0 4px rgba(16,185,129,0.3), var(--shadow-lg)' : 'var(--shadow-md)'};">
-                <!-- Background Image (loads on top of shimmer) -->
-                <div style="position: absolute; inset: 0; background: url('/public/backgrounds/${bg.filename}') center/cover; opacity: 0; transition: opacity 0.3s;" onload="this.style.opacity='1'"></div>
-                <img src="/public/backgrounds/${bg.filename}" style="display: none;" onload="this.previousElementSibling.style.opacity='1'">
+                <!-- Background Image (optimized loading) -->
+                <img src="/public/backgrounds/${bg.filename}"
+                     loading="lazy"
+                     decoding="async"
+                     style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.2s; will-change: opacity;"
+                     onload="this.style.opacity='1'">
                 ${isSelectedBg(bg.id) ? '<div style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--color-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.4);">✓</div>' : ''}
                 <!-- Background Name Label (inside, at bottom) -->
                 <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 8px 6px; font-size: 14px; font-weight: 600; color: white; text-align: center; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.5); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -1542,7 +1601,7 @@ async function createBackgroundScreen() {
                 const selectedBg = backgrounds.find(bg => String(bg.id) === String(currentBackgroundId));
                 return selectedBg ? `
                   <div style="width: 100%; height: 100%; position: relative; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg);">
-                    <img src="/public/backgrounds/${selectedBg.filename}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <img src="/public/backgrounds/${selectedBg.filename}" loading="eager" decoding="async" style="width: 100%; height: 100%; object-fit: cover; will-change: auto;">
                   </div>
                 ` : '';
               })() : currentBackgroundId === 'custom' ? `
@@ -1619,20 +1678,15 @@ async function createBackgroundScreen() {
               const isAIMode = state.aiCustomSelected && ((hasAI && !hasCustom) || (hasAI && state.customMode === 'ai'));
               const aiImageGenerated = isAIMode && state.aiGeneratedImages[state.currentPhotoIndex];
 
-              // If AI image is generated, show "Use This", "Regenerate", and "Try Different Prompt" buttons
+              // If AI image is generated, show "Use This" and "Regenerate" buttons
               if (aiImageGenerated) {
                 return `
-                  <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                      <button class="btn btn--outline" id="regenerateMainBtn" style="height: 85px; font-size: 18px; font-weight: bold; border: 3px solid var(--color-primary); box-shadow: var(--shadow-lg);">
-                        🔄 Regenerate
-                      </button>
-                      <button class="btn btn--gradient-success btn--large" id="useThisMainBtn" style="height: 85px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg);">
-                        ✓ Use This
-                      </button>
-                    </div>
-                    <button class="btn btn--outline" id="tryDifferentPromptMainBtn" style="height: 50px; font-size: 14px; font-weight: 600; border: 2px solid var(--color-gray-400); color: var(--color-gray-700); background: white;">
-                      ← Try Different Prompt
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <button class="btn btn--outline" id="regenerateMainBtn" style="height: 85px; font-size: 18px; font-weight: bold; border: 3px solid var(--color-primary); box-shadow: var(--shadow-lg);">
+                      🔄 Regenerate
+                    </button>
+                    <button class="btn btn--gradient-success btn--large" id="useThisMainBtn" style="height: 85px; font-size: 18px; font-weight: bold; box-shadow: var(--shadow-lg);">
+                      ✓ Use This
                     </button>
                   </div>
                 `;
@@ -1772,7 +1826,7 @@ function createDeliveryScreen() {
                   background: ${state.deliveryMethod === 'print' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                   box-shadow: ${state.deliveryMethod === 'print' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-            <div class="icon-printer" style="color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-primary)'}; transform: scale(1.5); margin-bottom: 24px;"></div>
+            <img src="/public/icons/printed.png" alt="Printer" style="width: 80px; height: 80px; margin-bottom: 24px; filter: ${state.deliveryMethod === 'print' ? 'brightness(0) invert(1)' : 'none'};" />
             <div style="font-size: 32px; font-weight: 900; margin-bottom: 8px; color: ${state.deliveryMethod === 'print' ? 'white' : 'var(--color-gray-900)'};">PRINTED</div>
             <div style="font-size: 16px; line-height: 1.6; color: ${state.deliveryMethod === 'print' ? 'rgba(255,255,255,0.92)' : 'var(--color-gray-600)'}; margin-bottom: 20px; font-weight: 500; max-width: 280px;">
               Professional 4x6 glossy prints ready to take home tonight
@@ -1790,7 +1844,7 @@ function createDeliveryScreen() {
                   background: ${state.deliveryMethod === 'email' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                   box-shadow: ${state.deliveryMethod === 'email' ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-            <div class="icon-envelope" style="color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-info)'}; transform: scale(1.8); margin-bottom: 20px;"></div>
+            <img src="/public/icons/email.png" alt="Email" style="width: 90px; height: 90px; margin-bottom: 20px; filter: ${state.deliveryMethod === 'email' ? 'brightness(0) invert(1)' : 'none'};" />
             <div style="font-size: 32px; font-weight: 900; margin-bottom: 8px; color: ${state.deliveryMethod === 'email' ? 'white' : 'var(--color-gray-900)'};">EMAIL</div>
             <div style="font-size: 16px; line-height: 1.6; color: ${state.deliveryMethod === 'email' ? 'rgba(255,255,255,0.92)' : 'var(--color-gray-600)'}; margin-bottom: 20px; font-weight: 500; max-width: 280px;">
               High-resolution digital photos delivered instantly to your inbox. Easy to share!
@@ -1810,9 +1864,9 @@ function createDeliveryScreen() {
                   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
             <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: var(--shadow-lg);">⭐ BEST VALUE</div>
             <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
-              <div class="icon-printer" style="color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-primary)'}; transform: scale(1.3);"></div>
+              <img src="/public/icons/printed.png" alt="Printer" style="width: 60px; height: 60px; filter: ${state.deliveryMethod === 'both' ? 'brightness(0) invert(1)' : 'none'};" />
               <div style="font-size: 24px; font-weight: bold; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-700)'};">+</div>
-              <div class="icon-envelope" style="color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-info)'}; transform: scale(1.3);"></div>
+              <img src="/public/icons/email.png" alt="Email" style="width: 60px; height: 60px; filter: ${state.deliveryMethod === 'both' ? 'brightness(0) invert(1)' : 'none'};" />
             </div>
             <div style="font-size: 32px; font-weight: 900; margin-bottom: 8px; color: ${state.deliveryMethod === 'both' ? 'white' : 'var(--color-gray-900)'};">BOTH</div>
             <div style="font-size: 16px; line-height: 1.6; color: ${state.deliveryMethod === 'both' ? 'rgba(255,255,255,0.92)' : 'var(--color-gray-600)'}; margin-bottom: 20px; font-weight: 500; max-width: 280px;">
@@ -2311,7 +2365,6 @@ function createReviewScreen() {
       </main>
 
       ${createProgressBar(10, state.totalSteps)}
-      ${createPricePreviewBadge()}
     </div>
   `;
 }
@@ -2327,12 +2380,12 @@ function createPaymentScreen() {
 
   // Filter payment methods by config (D5) + NEW DIGITAL OPTIONS
   const paymentMethods = [
-    { id: 'cash', label: 'CASH', emoji: '💵', enabled: config?.features?.cash === true },
-    { id: 'debit', label: 'DEBIT CARD', emoji: '💳', enabled: config?.features?.debitCard === true },
-    { id: 'credit', label: 'CREDIT CARD', emoji: '💳', enabled: config?.features?.creditCard === true },
-    { id: 'venmo', label: 'VENMO', emoji: '💸', enabled: config?.features?.venmo === true },
-    { id: 'zelle', label: 'ZELLE', emoji: '⚡', enabled: config?.features?.zelle === true },
-    { id: 'check', label: 'CHECK', emoji: '🏦', enabled: config?.features?.check === true }
+    { id: 'cash', label: 'CASH', emoji: '💵', icon: null, enabled: config?.features?.cash === true },
+    { id: 'debit', label: 'DEBIT CARD', emoji: '💳', icon: '/public/icons/card_payment.png', enabled: config?.features?.debitCard === true },
+    { id: 'credit', label: 'CREDIT CARD', emoji: '💳', icon: '/public/icons/card_payment.png', enabled: config?.features?.creditCard === true },
+    { id: 'venmo', label: 'VENMO', emoji: '💸', icon: '/public/icons/venmo_payment.png', enabled: config?.features?.venmo === true },
+    { id: 'zelle', label: 'ZELLE', emoji: '⚡', icon: '/public/icons/zelle_payment.png', enabled: config?.features?.zelle === true },
+    { id: 'check', label: 'CHECK', emoji: '🏦', icon: null, enabled: config?.features?.check === true }
   ].filter(method => method.enabled);
 
   return `
@@ -2359,7 +2412,10 @@ function createPaymentScreen() {
                       background: ${isSelected ? gradient : 'white'}; padding: 24px; cursor: pointer; transition: all 0.2s;
                       box-shadow: ${isSelected ? '0 0 0 6px rgba(16,185,129,0.3), var(--shadow-xl)' : 'var(--shadow-md)'};
                       display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                <div style="font-size: 64px; margin-bottom: 16px;">${method.emoji}</div>
+                ${method.icon
+                  ? `<img src="${method.icon}" alt="${method.label}" style="width: 80px; height: 80px; margin-bottom: 16px; ${isSelected ? 'filter: brightness(0) invert(1);' : ''}" />`
+                  : `<div style="font-size: 64px; margin-bottom: 16px;">${method.emoji}</div>`
+                }
                 <div style="font-size: 22px; font-weight: bold; color: ${isSelected ? 'white' : 'var(--color-gray-900)'};">${method.label}</div>
               </button>
             `;
@@ -3099,17 +3155,18 @@ function showStartOverModal() {
   modal.style.cssText = `
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.85);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    animation: fadeIn 0.2s ease-out;
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
+    will-change: opacity;
   `;
 
   modal.innerHTML = `
-    <div class="card card--glass" style="max-width: 500px; padding: 40px; text-align: center; animation: slideUp 0.3s ease-out;">
+    <div class="card card--glass" style="max-width: 500px; padding: 40px; text-align: center; transform: translateY(20px); opacity: 0; transition: all 0.15s ease-out; will-change: transform, opacity;">
       <div style="font-size: 56px; margin-bottom: 20px;">⚠️</div>
       <h2 style="font-size: 28px; font-weight: bold; margin-bottom: 16px; color: white;">Start Over?</h2>
       <p style="font-size: 16px; color: rgba(255,255,255,0.9); margin-bottom: 32px; line-height: 1.6;">
@@ -3128,6 +3185,16 @@ function showStartOverModal() {
   `;
 
   document.body.appendChild(modal);
+
+  // Trigger animation after append
+  requestAnimationFrame(() => {
+    modal.style.opacity = '1';
+    const card = modal.querySelector('.card');
+    if (card) {
+      card.style.transform = 'translateY(0)';
+      card.style.opacity = '1';
+    }
+  });
 
   // Add click event to overlay (close on click outside)
   modal.addEventListener('click', (e) => {
@@ -3241,6 +3308,23 @@ function attachEventListeners() {
   if (startOverBtn) {
     startOverBtn.addEventListener('click', () => {
       showStartOverModal();
+    });
+  }
+
+  // ==================== PRICE BREAKDOWN BADGE (Expandable) ====================
+  const pricePreviewBadge = document.getElementById('pricePreviewBadge');
+  if (pricePreviewBadge) {
+    pricePreviewBadge.addEventListener('click', () => {
+      state.priceBreakdownExpanded = true;
+      render();
+    });
+  }
+
+  const collapseBreakdownBtn = document.getElementById('collapseBreakdownBtn');
+  if (collapseBreakdownBtn) {
+    collapseBreakdownBtn.addEventListener('click', () => {
+      state.priceBreakdownExpanded = false;
+      render();
     });
   }
 
@@ -3387,6 +3471,22 @@ function attachEventListeners() {
     });
   }
 
+  // Clear prompt button
+  const clearPromptBtn = document.getElementById('clearPromptBtn');
+  if (clearPromptBtn) {
+    clearPromptBtn.addEventListener('click', () => {
+      // Clear the prompt only (keep the generated image)
+      state.aiPrompts[state.currentPhotoIndex] = '';
+      // Re-render to update UI
+      render();
+      // Focus the textarea
+      setTimeout(() => {
+        const textarea = document.getElementById('aiPromptInput');
+        if (textarea) textarea.focus();
+      }, 100);
+    });
+  }
+
   // Custom mode selector buttons (Manual vs AI)
   const customModeManual = document.getElementById('customModeManual');
   if (customModeManual) {
@@ -3450,16 +3550,6 @@ function attachEventListeners() {
         // All photos configured - proceed to party size
         navigateTo('partySize');
       }
-    });
-  }
-
-  // Try Different Prompt button (main button area)
-  const tryDifferentPromptMainBtn = document.getElementById('tryDifferentPromptMainBtn');
-  if (tryDifferentPromptMainBtn) {
-    tryDifferentPromptMainBtn.addEventListener('click', () => {
-      // Clear the generated image and go back to prompt entry
-      delete state.aiGeneratedImages[state.currentPhotoIndex];
-      render();
     });
   }
 

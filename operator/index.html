@@ -12,10 +12,6 @@
     <div class="header-container">
       <h1 class="dashboard-title">Greenscreen Kiosk</h1>
       <div class="header-actions">
-        <a href="settings.html" class="btn btn-primary" title="Settings">
-          <span class="btn-icon">⚙️</span>
-          Settings
-        </a>
         <button class="btn btn-secondary" id="darkModeToggle" title="Toggle Dark Mode">
           <span class="btn-icon" id="darkModeIcon">🌙</span>
         </button>
@@ -23,16 +19,11 @@
           <span class="btn-icon">📈</span>
           Analytics
         </button>
-        <button class="btn btn-secondary" id="refreshBtn">
-          <span class="btn-icon">↻</span>
-          Refresh
-        </button>
-        <div class="status-indicator">
-          <span class="status-dot" id="statusDot"></span>
-          <span class="status-text" id="statusText">Connecting...</span>
-        </div>
-      </div>
-    </div>
+        <a href="settings.html" class="btn btn-secondary" title="Settings">
+          <span class="btn-icon">⚙️</span>
+          Settings
+        </a>
+      </div>    </div>
   </header>
 
   <!-- Main Content -->
@@ -138,8 +129,20 @@
       <!-- Transactions Table -->
       <section class="transactions-section">
         <div class="section-header">
-          <h2 class="section-title">Recent Transactions</h2>
-          <p class="section-subtitle" id="transactionCount">Loading...</p>
+          <div>
+            <h2 class="section-title">Recent Transactions</h2>
+            <p class="section-subtitle" id="transactionCount">Loading...</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="status-indicator">
+              <span class="status-dot" id="statusDot"></span>
+              <span class="status-text" id="statusText">Connecting...</span>
+            </div>
+            <button class="btn btn-secondary" id="refreshBtn">
+              <span class="btn-icon">↻</span>
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div class="table-container">

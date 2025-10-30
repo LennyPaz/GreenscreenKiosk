@@ -494,7 +494,7 @@ input, button, textarea, select {
   border: 3px solid transparent;
   background: var(--color-primary);
   color: var(--color-white);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
 
   /* Interaction */
   cursor: pointer;
@@ -506,8 +506,8 @@ input, button, textarea, select {
 }
 
 .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-xl);
 }
 
 /* M6: Enhanced touch feedback */
@@ -588,33 +588,41 @@ input, button, textarea, select {
 .btn--danger {
   background: var(--color-error);
   color: var(--color-white);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3), var(--shadow-md);
 }
 
 .btn--danger:hover {
   background: #dc2626;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4), var(--shadow-lg);
 }
 
 .btn--outline {
   background: transparent;
-  border-color: var(--color-primary);
+  border: 3px solid var(--color-primary);
   color: var(--color-primary);
-  box-shadow: none;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
 }
 
 .btn--outline:hover {
   background: var(--color-primary);
   color: var(--color-white);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3), var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .btn--ghost {
-  background: transparent;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
   color: var(--color-primary);
-  box-shadow: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), inset 0 0 0 2px rgba(102, 126, 234, 0.2);
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  font-weight: 600;
 }
 
 .btn--ghost:hover {
-  background: var(--color-gray-100);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15), inset 0 0 0 2px rgba(102, 126, 234, 0.3);
+  border-color: rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
 }
 
 /* ============================================
@@ -641,6 +649,13 @@ input, button, textarea, select {
   background: var(--gradient-primary);
   border: none;
   color: var(--color-white);
+  box-shadow: 0 6px 24px rgba(102, 126, 234, 0.4), var(--shadow-lg);
+  font-weight: var(--font-bold);
+}
+
+.btn--gradient-primary:hover {
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.5), var(--shadow-xl);
+  transform: translateY(-3px) scale(1.02);
 }
 
 .btn--gradient-secondary {
@@ -690,19 +705,26 @@ input, button, textarea, select {
 .card {
   background: var(--color-white);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   padding: var(--space-lg);
   transition: all var(--transition-base);
+  border: 2px solid var(--color-border);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+  transform: translateY(-4px) scale(1.02);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .card--interactive {
   cursor: pointer;
   user-select: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(102, 126, 234, 0.1);
+}
+
+.card--interactive:hover {
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2), 0 0 0 2px rgba(102, 126, 234, 0.3);
 }
 
 /* M6: Enhanced touch feedback for interactive cards */

@@ -1186,6 +1186,100 @@ app.post('/api/backgrounds/import-from-directory', (req, res) => {
   }
 });
 
+// ==================== OPEN FILE EXPLORER WITH SEARCH ====================
+app.post('/api/open-folder-search', (req, res) => {
+  try {
+    const { receiptNumber } = req.body;
+
+    if (!receiptNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Receipt number is required'
+      });
+    }
+
+    // Extract date and last 4 characters from receipt number (GS-YYYYMMDD-XXXX)
+    // This makes search more specific and avoids collisions
+    const receiptStr = receiptNumber.toString();
+    const parts = receiptStr.split('-');
+    const dateAndLast4 = parts.length >= 3 ? `${parts[1]}-${parts[2]}` : receiptStr.slice(-4);
+
+    // Path to images folder
+    const imagesPath = path.join(__dirname, '../data/images');
+
+    // For Windows, use PowerShell to open File Explorer with search
+    const { exec } = require('child_process');
+
+    // Search query pattern (e.g., *20251030-RPYK*)
+    const searchQuery = `*${dateAndLast4}*`;
+
+    // Use search-ms protocol to open File Explorer with search already populated
+    const searchUrl = `search-ms:displayname=Search%20Results%20in%20Images&crumb=location:${encodeURIComponent(imagesPath)}&crumb=${encodeURIComponent(searchQuery)}`;
+
+    // Use VBScript to open and focus the window
+    // VBScript's AppActivate can force window to foreground and is more reliable
+    const fs = require('fs');
+    const vbsPath = path.join(__dirname, '../temp_open_explorer.vbs');
+
+    // Create VBScript that will open the search and force it to foreground
+    const vbsScript = `Set WshShell = CreateObject("WScript.Shell")
+Set objShell = CreateObject("Shell.Application")
+
+' Open the search URL
+WshShell.Run "${searchUrl}", 1
+WScript.Sleep 1500
+
+' Try multiple attempts to bring window to foreground
+On Error Resume Next
+For i = 1 To 3
+    WshShell.AppActivate "Search Results in Images"
+    WScript.Sleep 300
+    WshShell.SendKeys "%"
+    WScript.Sleep 100
+Next
+`;
+
+    // Write VBS script to temp file
+    fs.writeFileSync(vbsPath, vbsScript);
+
+    // Execute VBScript with wscript (runs silently)
+    const command = `wscript "${vbsPath}"`;
+
+    console.log(`Opening File Explorer with search for: ${searchQuery}`);
+
+    // Send response immediately before exec completes
+    res.json({
+      success: true,
+      message: `Opening images folder with search: ${searchQuery}`,
+      searchTerm: searchQuery
+    });
+
+    // Execute command asynchronously (don't wait for callback)
+    exec(command, (error, stdout, stderr) => {
+      // Clean up VBS file
+      try {
+        fs.unlinkSync(vbsPath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up VBS file:', cleanupError);
+      }
+
+      if (error) {
+        console.error('Error opening folder with search:', error);
+        console.error('stderr:', stderr);
+      } else {
+        console.log('Successfully opened File Explorer with search');
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in open-folder-search:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process request'
+    });
+  }
+});
+
 // ==================== ERROR HANDLING ====================
 
 // 404 handler

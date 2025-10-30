@@ -457,6 +457,9 @@ body {
 }
 
 .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: var(--space-6);
   border-bottom: 1px solid var(--color-gray-200);
 }
@@ -835,6 +838,10 @@ body {
 
 [data-theme="dark"] .stat-card.active {
   background-color: rgba(37, 99, 235, 0.15);
+}
+
+[data-theme="dark"] .customer-number {
+  color: #ffffff;
 }
 
 /* ============================================

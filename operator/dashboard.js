@@ -48,6 +48,21 @@ let state = {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Check authentication
+  if (!sessionStorage.getItem('operatorAuthenticated')) {
+    window.location.href = 'login.html';
+    return;
+  }
+
+  // Add keyboard shortcut for logout (Ctrl+Shift+R)
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+      e.preventDefault();
+      sessionStorage.removeItem('operatorAuthenticated');
+      window.location.href = 'login.html';
+    }
+  });
+
   initializeApp();
 });
 
@@ -376,7 +391,7 @@ function createTransactionRow(t) {
       <input type="checkbox" class="row-checkbox" data-customer-number="${t.customer_number}" ${isSelected ? 'checked' : ''}>
     </td>
     <td>
-      <span class="customer-number">#${t.customer_number}</span>
+      <span class="customer-number" onclick="openReceiptImages('${t.customer_number}')" style="cursor: pointer; text-decoration: underline;" title="Click to open images folder">#${t.customer_number}</span>
     </td>
     <td>
       ${t.customer_photo_path 
@@ -434,7 +449,7 @@ function createTransactionRow(t) {
         }
 
         return hasCustom
-          ? ` <button class="btn btn-sm btn-secondary" onclick="viewTransactionDetails('${t.customer_number}')" title="View custom background notes" style="display: inline-block; vertical-align: middle; margin-left: 6px; padding: 2px 8px; font-size: 11px;">${t.background_id === 'ai-custom' ? '✨' : t.background_id === 'mixed-custom' ? '🎨' : '📝'}</button>`
+          ? ` <button class="btn btn-sm btn-secondary" onclick="viewTransactionDetailsAndScrollToNotes('${t.customer_number}')" title="View custom background notes" style="display: inline-block; vertical-align: middle; margin-left: 6px; padding: 2px 8px; font-size: 11px;">📋</button>`
           : '';
       })()}
     </td>
@@ -1362,6 +1377,47 @@ async function viewTransactionDetails(customerNumber) {
   }
 }
 
+async function viewTransactionDetailsAndScrollToNotes(customerNumber) {
+  // First open the modal
+  await viewTransactionDetails(customerNumber);
+
+  // Then scroll to notes after a short delay to ensure modal is rendered
+  setTimeout(() => {
+    scrollToNotes();
+  }, 300);
+}
+
+function openReceiptImages(customerNumber) {
+  try {
+    // Extract date and last 4 characters from receipt number (GS-YYYYMMDD-XXXX)
+    const receiptStr = customerNumber.toString();
+    const parts = receiptStr.split('-');
+    const dateAndLast4 = parts.length >= 3 ? `${parts[1]}-${parts[2]}` : receiptStr.slice(-4);
+
+    // Trigger server to open File Explorer, which will bring window to front
+    fetch(`${API_BASE_URL}/open-folder-search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ receiptNumber: customerNumber })
+    }).then(response => {
+      if (response.ok) {
+        showToast(`Opening images folder. Search for: *${dateAndLast4}*`, 'success');
+      } else {
+        showToast('Failed to open images folder', 'error');
+      }
+    }).catch(error => {
+      console.error('Error opening folder:', error);
+      showToast('Failed to open images folder', 'error');
+    });
+
+  } catch (error) {
+    console.error('Error opening folder:', error);
+    showToast('Failed to open images folder', 'error');
+  }
+}
+
 function renderTransactionModal(t) {
   const modalBody = document.getElementById('modalBody');
   
@@ -1995,7 +2051,7 @@ function renderPrintQueue() {
               ? '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">No print orders in queue</td></tr>'
               : displayedOrders.map(t => `
                 <tr>
-                  <td><span class="customer-number">#${t.customer_number}</span></td>
+                  <td><span class="customer-number" onclick="openReceiptImages('${t.customer_number}')" style="cursor: pointer; text-decoration: underline;" title="Click to open images folder">#${t.customer_number}</span></td>
                   <td>${escapeHtml(t.customer_name)}</td>
                   <td>${t.print_quantity || 1}</td>
                   <td>${(() => {
@@ -2319,12 +2375,12 @@ function getTransactionStatus(transaction) {
   }
 
   // Check specific pending items in order of importance
-  if (!transaction.status_photo_taken) {
-    return { label: 'Photo Pending', class: 'pending' };
-  }
-
   if (!transaction.status_paid) {
     return { label: 'Payment Pending', class: 'pending' };
+  }
+
+  if (!transaction.status_photo_taken) {
+    return { label: 'Photo Pending', class: 'pending' };
   }
 
   // Check delivery-specific requirements
@@ -2358,15 +2414,15 @@ function getQuickActionButton(transaction, status) {
   const needsPrint = transaction.delivery_method === 'print' || transaction.delivery_method === 'both';
 
   // Check what action is needed based on status
-  if (!transaction.status_photo_taken) {
-    return `<button class="btn btn-xs btn-success" onclick="quickMarkStatus('${transaction.customer_number}', 'status_photo_taken')" title="Mark photo as taken">
-      ✓ Photo
-    </button>`;
-  }
-
   if (!transaction.status_paid) {
     return `<button class="btn btn-xs btn-success" onclick="quickMarkStatus('${transaction.customer_number}', 'status_paid')" title="Mark as paid">
       ✓ Paid
+    </button>`;
+  }
+
+  if (!transaction.status_photo_taken) {
+    return `<button class="btn btn-xs btn-success" onclick="quickMarkStatus('${transaction.customer_number}', 'status_photo_taken')" title="Mark photo as taken">
+      ✓ Photo
     </button>`;
   }
 
