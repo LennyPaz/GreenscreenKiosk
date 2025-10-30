@@ -36,3 +36,32 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# Development & Class Files (not needed for functionality)
+.claude/
+md files/
+Old Design Images/
+Project Instructions.txt
+Rubric Group Sprint 3.pdf
+10 Usability Heuristics.txt
+css_best_practices.txt
+BACKGROUND-SETUP.md
+KIOSK_RECEIPT_UPDATE.js
+
+# Test & Utility Scripts (not needed for users)
+test-import.js
+server/test.js
+server/generate-test-data.js
+server/seed-data.js
+download-backgrounds.js
+import-backgrounds-to-db.js
+
+# Old/Backup Files
+public/ogconfig.txt
+operator/settings.html
+operator/settings.js
+*.backup
+*.backup-*
+
+# AI Generated test images in backgrounds folder
+public/backgrounds/ai-generated/
