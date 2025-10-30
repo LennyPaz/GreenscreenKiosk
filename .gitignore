@@ -47,6 +47,7 @@ Rubric Group Sprint 3.pdf
 css_best_practices.txt
 BACKGROUND-SETUP.md
 KIOSK_RECEIPT_UPDATE.js
+TESTING.md
 
 # Test & Utility Scripts (not needed for users)
 test-import.js

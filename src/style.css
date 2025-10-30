@@ -711,7 +711,7 @@ input, button, textarea, select {
   border: 2px solid var(--color-border);
 }
 
-.card:hover {
+.card:hover:not(.card--glass) {
   box-shadow: var(--shadow-xl);
   transform: translateY(-4px) scale(1.02);
   border-color: rgba(102, 126, 234, 0.3);
