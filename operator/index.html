@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operator Dashboard - Greenscreen Kiosk</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="dashboard-header">
+    <div class="header-container">
+      <h1 class="dashboard-title">Greenscreen Kiosk</h1>
+      <div class="header-actions">
+        <a href="settings.html" class="btn btn-primary" title="Settings">
+          <span class="btn-icon">⚙️</span>
+          Settings
+        </a>
+        <button class="btn btn-secondary" id="darkModeToggle" title="Toggle Dark Mode">
+          <span class="btn-icon" id="darkModeIcon">🌙</span>
+        </button>
+        <button class="btn btn-secondary" id="analyticsBtn">
+          <span class="btn-icon">📈</span>
+          Analytics
+        </button>
+        <button class="btn btn-secondary" id="refreshBtn">
+          <span class="btn-icon">↻</span>
+          Refresh
+        </button>
+        <div class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="status-text" id="statusText">Connecting...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="dashboard-main">
+    <div class="dashboard-container">
+      
+      <!-- Statistics Cards (Now clickable for filtering) -->
+      <section class="stats-section">
+        <div class="stats-grid">
+          <div class="stat-card clickable" data-filter="all" id="statTotalOrders">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+              <p class="stat-label">Total Orders</p>
+              <p class="stat-value" id="totalOrders">0</p>
+            </div>
+          </div>
+
+          <div class="stat-card clickable" data-filter="revenue" id="statRevenue">
+            <div class="stat-icon">💰</div>
+            <div class="stat-content">
+              <p class="stat-label">Total Revenue</p>
+              <p class="stat-value" id="totalRevenue">$0.00</p>
+            </div>
+          </div>
+
+          <div class="stat-card clickable" data-filter="pending" id="statPending">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-content">
+              <p class="stat-label">Pending Orders</p>
+              <p class="stat-value" id="pendingOrders">0</p>
+            </div>
+          </div>
+
+          <div class="stat-card clickable" data-filter="today" id="statToday">
+            <div class="stat-icon">📅</div>
+            <div class="stat-content">
+              <p class="stat-label">Today's Orders</p>
+              <p class="stat-value" id="todayOrders">0</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Enhanced Controls Section -->
+      <section class="controls-section">
+        <div class="controls-row">
+          <div class="search-bar">
+            <input 
+              type="text" 
+              id="searchInput" 
+              class="search-input" 
+              placeholder="Search by customer number, name, or background..."
+              autocomplete="off"
+            >
+            <button class="btn btn-primary" id="searchBtn">Search</button>
+            <button class="btn btn-secondary" id="clearSearchBtn">Clear</button>
+          </div>
+
+          <div class="action-buttons">
+            <button class="btn btn-success" id="exportCSVBtn" title="Export all data to CSV">
+              <span class="btn-icon">📥</span>
+              Export CSV
+            </button>
+            <button class="btn btn-secondary" id="printQueueBtn" title="View print queue">
+              <span class="btn-icon">🖨️</span>
+              Print Queue
+            </button>
+            <button class="btn btn-secondary" id="emailDashboardBtn" title="Email delivery status">
+              <span class="btn-icon">📧</span>
+              Email Status
+            </button>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="filter-group">
+            <label class="filter-label">Status:</label>
+            <select id="statusFilter" class="filter-select">
+              <option value="all">All Orders</option>
+              <option value="pending">Pending Pickup</option>
+              <option value="completed">Completed</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Date Range:</label>
+            <input type="date" id="dateFrom" class="date-input">
+            <span class="filter-label">to</span>
+            <input type="date" id="dateTo" class="date-input">
+            <button class="btn btn-sm btn-secondary" id="clearDatesBtn">Clear</button>
+          </div>
+
+          <div class="bulk-actions" id="bulkActionsBar" style="display: none;">
+            <span class="bulk-count" id="bulkCount">0 selected</span>
+            <button class="btn btn-sm btn-success" id="bulkCompleteBtn">Mark Complete</button>
+            <button class="btn btn-sm btn-secondary" id="bulkPrintBtn">Print Receipts</button>
+            <button class="btn btn-sm btn-danger" id="bulkDeselectBtn">Deselect All</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Transactions Table -->
+      <section class="transactions-section">
+        <div class="section-header">
+          <h2 class="section-title">Recent Transactions</h2>
+          <p class="section-subtitle" id="transactionCount">Loading...</p>
+        </div>
+
+        <div class="table-container">
+          <table class="transactions-table" id="transactionsTable">
+            <thead>
+              <tr>
+                <th>
+                  <input type="checkbox" id="selectAllCheckbox" class="select-checkbox" title="Select all visible">
+                </th>
+                <th class="sortable" data-sort="customer_number">
+                  Order # <span class="sort-icon"></span>
+                </th>
+                <th>Photo</th>
+                <th class="sortable" data-sort="customer_name">
+                  Customer <span class="sort-icon"></span>
+                </th>
+                <th class="sortable" data-sort="party_size">
+                  Party <span class="sort-icon"></span>
+                </th>
+                <th class="sortable" data-sort="photo_quantity">
+                  Photos <span class="sort-icon"></span>
+                </th>
+                <th class="sortable" data-sort="background_name">
+                  Background <span class="sort-icon"></span>
+                </th>
+                <th>Delivery</th>
+                <th>Payment</th>
+                <th class="sortable" data-sort="total_price">
+                  Total <span class="sort-icon"></span>
+                </th>
+                <th>Status</th>
+                <th class="sortable" data-sort="created_at">
+                  Time <span class="sort-icon"></span>
+                </th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="transactionsBody">
+              <tr>
+                <td colspan="13" class="loading-cell">
+                  <div class="loading-spinner"></div>
+                  <p>Loading transactions...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Transaction Detail Modal -->
+  <div class="modal" id="detailModal">
+    <div class="modal-overlay" id="modalOverlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Order Details</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      
+      <div class="modal-body" id="modalBody">
+        <!-- Content loaded dynamically -->
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="printReceiptBtn">
+          <span class="btn-icon">🖨️</span>
+          Print Receipt
+        </button>
+        <button class="btn btn-secondary" id="modalCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Modal -->
+  <div class="modal" id="analyticsModal">
+    <div class="modal-overlay" id="analyticsOverlay"></div>
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h2 class="modal-title">Analytics Dashboard</h2>
+        <button class="modal-close" id="analyticsClose">&times;</button>
+      </div>
+      
+      <div class="modal-body" id="analyticsBody">
+        <div class="analytics-grid">
+          <div class="analytics-card">
+            <h3 class="analytics-title">Revenue Over Time</h3>
+            <canvas id="revenueChart"></canvas>
+          </div>
+          
+          <div class="analytics-card">
+            <h3 class="analytics-title">Popular Backgrounds</h3>
+            <canvas id="backgroundsChart"></canvas>
+          </div>
+          
+          <div class="analytics-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 class="analytics-title" style="margin: 0;">Orders by Hour</h3>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <label for="ordersDateSelector" style="font-size: 14px; color: var(--text-secondary);">Date:</label>
+                <input 
+                  type="date" 
+                  id="ordersDateSelector" 
+                  class="date-input" 
+                  style="padding: 6px 8px; font-size: 14px;"
+                >
+              </div>
+            </div>
+            <canvas id="ordersTimeChart"></canvas>
+          </div>
+          
+          <div class="analytics-card">
+            <h3 class="analytics-title">Delivery Methods</h3>
+            <canvas id="deliveryChart"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="analyticsCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print Queue Modal -->
+  <div class="modal" id="printQueueModal">
+    <div class="modal-overlay" id="printQueueOverlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Print Queue Management</h2>
+        <button class="modal-close" id="printQueueClose">&times;</button>
+      </div>
+      
+      <div class="modal-body" id="printQueueBody">
+        <!-- Content loaded dynamically -->
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="printQueueCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Dashboard Modal -->
+  <div class="modal" id="emailDashboardModal">
+    <div class="modal-overlay" id="emailDashboardOverlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Email Delivery Dashboard</h2>
+        <button class="modal-close" id="emailDashboardClose">&times;</button>
+      </div>
+      
+      <div class="modal-body" id="emailDashboardBody">
+        <!-- Content loaded dynamically -->
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="emailDashboardCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Chart.js for analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
